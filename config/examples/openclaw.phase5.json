@@ -1,0 +1,39 @@
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "ollama/kimi-k2.5:cloud",
+        "fallbacks": ["ollama/deepseek-v3.2:cloud", "openrouter/free"]
+      },
+      "models": {
+        "openai-codex/gpt-5.3-codex": { "alias": "codex53" },
+        "ollama/kimi-k2.5:cloud": { "alias": "kimi" },
+        "ollama/deepseek-v3.2:cloud": { "alias": "deepseek" },
+        "xai/grok-3-fast-latest": { "alias": "grok" },
+        "openrouter/free": { "alias": "free" }
+      },
+      "modelRouter": {
+        "enabled": true,
+        "defaultRoute": "everyday",
+        "routes": {
+          "coding": {
+            "primary": "openai-codex/gpt-5.3-codex",
+            "fallbacks": ["ollama/deepseek-v3.2:cloud", "ollama/kimi-k2.5:cloud", "openrouter/free"]
+          },
+          "everyday": {
+            "primary": "ollama/kimi-k2.5:cloud",
+            "fallbacks": ["ollama/deepseek-v3.2:cloud", "openrouter/free"]
+          },
+          "x": {
+            "primary": "xai/grok-3-fast-latest",
+            "fallbacks": [
+              "openai-codex/gpt-5.3-codex",
+              "ollama/deepseek-v3.2:cloud",
+              "openrouter/free"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

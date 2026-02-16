@@ -42,6 +42,14 @@ Model note: while any model is supported, I strongly recommend **Anthropic Pro/M
 - Models config + CLI: [Models](https://docs.openclaw.ai/concepts/models)
 - Auth profile rotation (OAuth vs API keys) + fallbacks: [Model failover](https://docs.openclaw.ai/concepts/model-failover)
 
+### Phase 5 routing profile
+
+Phase 5 adds intent-aware model orchestration with deterministic fallbacks and hard-stop handling for allowlist/auth misconfiguration.
+
+- Setup guide: [Phase 5 Model Routing](https://docs.openclaw.ai/phase-5-model-routing)
+- Example config: `config/examples/openclaw.phase5.json`
+- Router debug: `openclaw agent --local --model-router-debug --message "Implement this TypeScript refactor" --agent main`
+
 ## Install (recommended)
 
 Runtime: **Node ≥22**.

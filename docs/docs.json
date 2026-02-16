@@ -1045,7 +1045,11 @@
               },
               {
                 "group": "Configuration",
-                "pages": ["concepts/model-providers", "concepts/model-failover"]
+                "pages": [
+                  "concepts/model-providers",
+                  "concepts/model-failover",
+                  "phase-5-model-routing"
+                ]
               },
               {
                 "group": "Providers",
