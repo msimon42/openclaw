@@ -189,6 +189,7 @@ export const agentHandlers: GatewayRequestHandlers = {
       groupSpace?: string;
       lane?: string;
       extraSystemPrompt?: string;
+      modelRouterDebug?: boolean;
       idempotencyKey: string;
       timeout?: number;
       label?: string;
@@ -556,6 +557,7 @@ export const agentHandlers: GatewayRequestHandlers = {
         runId,
         lane: request.lane,
         extraSystemPrompt: request.extraSystemPrompt,
+        modelRouterDebug: request.modelRouterDebug === true,
         inputProvenance,
       },
       defaultRuntime,

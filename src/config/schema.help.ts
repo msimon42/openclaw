@@ -238,6 +238,22 @@ export const FIELD_HELP: Record<string, string> = {
     "Session/channel scope for QMD recall (same syntax as session.sendPolicy; default: direct-only). Use match.rawKeyPrefix to match full agent-prefixed session keys.",
   "agents.defaults.memorySearch.cache.maxEntries":
     "Optional cap on cached embeddings (best-effort).",
+  "agents.defaults.modelRouter":
+    "Optional intent router for model selection (coding/default/X) before fallback execution.",
+  "agents.defaults.modelRouter.enabled":
+    "Enable intent-based model routing before model fallback (default: false).",
+  "agents.defaults.modelRouter.debug":
+    "Log structured router decisions for each run (can also be enabled with OPENCLAW_MODEL_ROUTER_DEBUG=1).",
+  "agents.defaults.modelRouter.defaultRoute":
+    'Default router route when heuristics do not match ("coding", "everyday", or "x").',
+  "agents.defaults.modelRouter.disabledProviders":
+    'Optional provider denylist for router output candidates (e.g., ["xai"]).',
+  "agents.defaults.modelRouter.routes.coding":
+    "Override primary/fallback model refs for coding/repo intent.",
+  "agents.defaults.modelRouter.routes.everyday":
+    "Override primary/fallback model refs for default everyday intent.",
+  "agents.defaults.modelRouter.routes.x":
+    "Override primary/fallback model refs for X/Twitter intent.",
   "agents.defaults.memorySearch.sync.onSearch":
     "Lazy sync: schedule a reindex on search after changes.",
   "agents.defaults.memorySearch.sync.watch": "Watch memory files for changes (chokidar).",

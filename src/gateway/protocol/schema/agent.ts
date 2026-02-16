@@ -73,6 +73,7 @@ export const AgentParamsSchema = Type.Object(
     timeout: Type.Optional(Type.Integer({ minimum: 0 })),
     lane: Type.Optional(Type.String()),
     extraSystemPrompt: Type.Optional(Type.String()),
+    modelRouterDebug: Type.Optional(Type.Boolean()),
     inputProvenance: Type.Optional(
       Type.Object(
         {

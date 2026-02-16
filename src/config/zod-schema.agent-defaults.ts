@@ -21,6 +21,43 @@ export const AgentDefaultsSchema = z
       })
       .strict()
       .optional(),
+    modelRouter: z
+      .object({
+        enabled: z.boolean().optional(),
+        debug: z.boolean().optional(),
+        defaultRoute: z
+          .union([z.literal("coding"), z.literal("everyday"), z.literal("x")])
+          .optional(),
+        disabledProviders: z.array(z.string()).optional(),
+        routes: z
+          .object({
+            coding: z
+              .object({
+                primary: z.string().optional(),
+                fallbacks: z.array(z.string()).optional(),
+              })
+              .strict()
+              .optional(),
+            everyday: z
+              .object({
+                primary: z.string().optional(),
+                fallbacks: z.array(z.string()).optional(),
+              })
+              .strict()
+              .optional(),
+            x: z
+              .object({
+                primary: z.string().optional(),
+                fallbacks: z.array(z.string()).optional(),
+              })
+              .strict()
+              .optional(),
+          })
+          .strict()
+          .optional(),
+      })
+      .strict()
+      .optional(),
     imageModel: z
       .object({
         primary: z.string().optional(),

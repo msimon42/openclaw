@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { OpenClawConfig, ConfigValidationIssue } from "./types.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
+import { validateModelRouterAllowlist, validateModelRouterAuth } from "../agents/model-router.js";
 import { CHANNEL_IDS, normalizeChatChannelId } from "../channels/registry.js";
 import {
   normalizePluginsConfig,
@@ -311,6 +312,12 @@ function validateConfigObjectWithPluginsBase(
   }
 
   if (!hasExplicitPluginsConfig) {
+    const routerAllowlist = validateModelRouterAllowlist({ cfg: config });
+    issues.push(...routerAllowlist.issues);
+    warnings.push(...routerAllowlist.warnings);
+    const routerAuth = validateModelRouterAuth({ cfg: config });
+    issues.push(...routerAuth.issues);
+    warnings.push(...routerAuth.warnings);
     if (issues.length > 0) {
       return { ok: false, issues, warnings };
     }
@@ -430,6 +437,16 @@ function validateConfigObjectWithPluginsBase(
     }
   }
 
+  if (issues.length > 0) {
+    return { ok: false, issues, warnings };
+  }
+
+  const routerAllowlist = validateModelRouterAllowlist({ cfg: config });
+  issues.push(...routerAllowlist.issues);
+  warnings.push(...routerAllowlist.warnings);
+  const routerAuth = validateModelRouterAuth({ cfg: config });
+  issues.push(...routerAuth.issues);
+  warnings.push(...routerAuth.warnings);
   if (issues.length > 0) {
     return { ok: false, issues, warnings };
   }

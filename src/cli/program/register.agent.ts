@@ -34,6 +34,7 @@ export function registerAgentCommands(program: Command, args: { agentChannelOpti
     .option("--reply-to <target>", "Delivery target override (separate from session routing)")
     .option("--reply-channel <channel>", "Delivery channel override (separate from routing)")
     .option("--reply-account <id>", "Delivery account id override")
+    .option("--model-router-debug", "Print model-router decision object", false)
     .option(
       "--local",
       "Run the embedded agent locally (requires model provider API keys in your shell)",
