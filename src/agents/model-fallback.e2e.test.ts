@@ -2,12 +2,12 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import type { AuthProfileStore } from "./auth-profiles.js";
 import { saveAuthProfileStore } from "./auth-profiles.js";
 import { AUTH_STORE_VERSION } from "./auth-profiles/constants.js";
-import { runWithModelFallback } from "./model-fallback.js";
+import { __resetModelFallbackCircuitForTests, runWithModelFallback } from "./model-fallback.js";
 
 function makeCfg(overrides: Partial<OpenClawConfig> = {}): OpenClawConfig {
   return {
@@ -24,6 +24,10 @@ function makeCfg(overrides: Partial<OpenClawConfig> = {}): OpenClawConfig {
 }
 
 describe("runWithModelFallback", () => {
+  beforeEach(() => {
+    __resetModelFallbackCircuitForTests();
+  });
+
   it("normalizes openai gpt-5.3 codex to openai-codex before running", async () => {
     const cfg = makeCfg();
     const run = vi.fn().mockResolvedValueOnce("ok");
@@ -84,6 +88,26 @@ describe("runWithModelFallback", () => {
           "521 <!DOCTYPE html><html><head><title>Web server is down</title></head><body>Cloudflare</body></html>",
         ),
       )
+      .mockResolvedValueOnce("ok");
+
+    const result = await runWithModelFallback({
+      cfg,
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      run,
+    });
+
+    expect(result.result).toBe("ok");
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(run.mock.calls[1]?.[0]).toBe("anthropic");
+    expect(run.mock.calls[1]?.[1]).toBe("claude-haiku-3-5");
+  });
+
+  it("falls back on structured 5xx provider errors", async () => {
+    const cfg = makeCfg();
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error("internal server error"), { status: 503 }))
       .mockResolvedValueOnce("ok");
 
     const result = await runWithModelFallback({
@@ -447,6 +471,46 @@ describe("runWithModelFallback", () => {
     expect(run.mock.calls[1]?.[1]).toBe("claude-haiku-3-5");
   });
 
+  it("does not retry on invalid_api_key terminal errors", async () => {
+    const cfg = makeCfg();
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error("invalid_api_key: bad key"), { status: 401 }))
+      .mockResolvedValueOnce("unexpected");
+
+    await expect(
+      runWithModelFallback({
+        cfg,
+        provider: "openai",
+        model: "gpt-4.1-mini",
+        run,
+      }),
+    ).rejects.toThrow(/Model authentication failed/);
+
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry on model_not_allowed terminal errors", async () => {
+    const cfg = makeCfg();
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error("model_not_allowed: not in allowlist"), { status: 403 }),
+      )
+      .mockResolvedValueOnce("unexpected");
+
+    await expect(
+      runWithModelFallback({
+        cfg,
+        provider: "openai",
+        model: "gpt-4.1-mini",
+        run,
+      }),
+    ).rejects.toThrow(/allowlist/i);
+
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back on timeout abort errors", async () => {
     const cfg = makeCfg();
     const timeoutCause = Object.assign(new Error("request timed out"), { name: "TimeoutError" });
@@ -551,6 +615,106 @@ describe("runWithModelFallback", () => {
     ).rejects.toThrow("aborted");
 
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries context overflow with a larger-context fallback model", async () => {
+    const cfg = {
+      agents: {
+        defaults: {
+          model: {
+            primary: "openai/model-small",
+            fallbacks: ["openai/model-large"],
+          },
+        },
+      },
+      models: {
+        providers: {
+          openai: {
+            baseUrl: "https://example.com/v1",
+            models: [
+              {
+                id: "model-small",
+                name: "small",
+                reasoning: false,
+                input: ["text"],
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                contextWindow: 8000,
+                maxTokens: 2048,
+              },
+              {
+                id: "model-large",
+                name: "large",
+                reasoning: false,
+                input: ["text"],
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                contextWindow: 128000,
+                maxTokens: 4096,
+              },
+            ],
+          },
+        },
+      },
+    } as OpenClawConfig;
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("context length exceeded for this model"))
+      .mockResolvedValueOnce("ok");
+
+    const result = await runWithModelFallback({
+      cfg,
+      provider: "openai",
+      model: "model-small",
+      run,
+    });
+
+    expect(result.result).toBe("ok");
+    expect(run.mock.calls).toEqual([
+      ["openai", "model-small"],
+      ["openai", "model-large"],
+    ]);
+  });
+
+  it("applies model router plan before fallback execution", async () => {
+    const cfg = {
+      agents: {
+        defaults: {
+          model: {
+            primary: "ollama/kimi-k2.5:cloud",
+          },
+          models: {
+            "openai-codex/gpt-5.3-codex": {},
+            "ollama/kimi-k2.5:cloud": {},
+            "ollama/deepseek-v3.2:cloud": {},
+            "openrouter/free": {},
+            "xai/grok-3-fast-latest": {},
+          },
+          modelRouter: {
+            enabled: true,
+          },
+        },
+      },
+    } as OpenClawConfig;
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error("provider timed out"), { code: "ETIMEDOUT" }))
+      .mockResolvedValueOnce("ok");
+
+    const result = await runWithModelFallback({
+      cfg,
+      provider: "ollama",
+      model: "kimi-k2.5:cloud",
+      routerInput: {
+        message: "implement this TypeScript refactor",
+        repoContext: "coding",
+      },
+      run,
+    });
+
+    expect(result.result).toBe("ok");
+    expect(run.mock.calls).toEqual([
+      ["openai-codex", "gpt-5.3-codex"],
+      ["ollama", "deepseek-v3.2:cloud"],
+    ]);
   });
 
   it("appends the configured primary as a last fallback", async () => {
