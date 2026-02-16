@@ -188,6 +188,7 @@ export async function handleInlineActions(params: {
         ? listSkillCommandsForWorkspace({
             workspaceDir,
             cfg,
+            agentId,
             skillFilter,
           })
         : [];

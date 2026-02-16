@@ -1,4 +1,4 @@
-import AjvPkg, { type ErrorObject, type ValidateFunction } from "ajv";
+import AjvPkg, { type ErrorObject } from "ajv";
 
 export type ValidationSuccess<T> = {
   ok: true;

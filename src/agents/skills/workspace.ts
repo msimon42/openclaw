@@ -26,6 +26,12 @@ import {
   resolveSkillInvocationPolicy,
 } from "./frontmatter.js";
 import { resolvePluginSkillDirs } from "./plugin-skills.js";
+import {
+  isManifestRequiredForSource,
+  loadSkillManifest,
+  resolveSkillPolicyForEntry,
+  validateSkillCapabilities,
+} from "./security.js";
 import { serializeByKey } from "./serialize.js";
 
 const fsp = fs.promises;
@@ -107,6 +113,7 @@ function loadSkillEntries(
     config?: OpenClawConfig;
     managedSkillsDir?: string;
     bundledSkillsDir?: string;
+    agentId?: string;
   },
 ): SkillEntry[] {
   const loadSkills = (params: { dir: string; source: string }): Skill[] => {
@@ -191,7 +198,8 @@ function loadSkillEntries(
     merged.set(skill.name, skill);
   }
 
-  const skillEntries: SkillEntry[] = Array.from(merged.values()).map((skill) => {
+  const skillEntries: SkillEntry[] = [];
+  for (const skill of merged.values()) {
     let frontmatter: ParsedSkillFrontmatter = {};
     try {
       const raw = fs.readFileSync(skill.filePath, "utf-8");
@@ -199,13 +207,52 @@ function loadSkillEntries(
     } catch {
       // ignore malformed skills
     }
-    return {
+    const baseEntry: SkillEntry = {
       skill,
       frontmatter,
       metadata: resolveOpenClawMetadata(frontmatter),
       invocation: resolveSkillInvocationPolicy(frontmatter),
     };
-  });
+    const manifestResult = loadSkillManifest(skill.baseDir);
+    const manifestRequired = isManifestRequiredForSource(skill.source);
+    const manifestMissing = !manifestResult.ok && manifestResult.error === "skill manifest missing";
+
+    if (!manifestResult.ok) {
+      const shouldReject = manifestRequired || !manifestMissing;
+      if (shouldReject) {
+        skillsLogger.warn(
+          `Skipping skill "${skill.name}" (${skill.source}): ${manifestResult.error} (${manifestResult.manifestPath})`,
+        );
+        continue;
+      }
+    }
+
+    const entry: SkillEntry = manifestResult.ok
+      ? { ...baseEntry, manifest: manifestResult.manifest }
+      : baseEntry;
+    const effectivePolicy = resolveSkillPolicyForEntry({
+      entry,
+      config: opts?.config,
+      agentId: opts?.agentId,
+    });
+    if (entry.manifest) {
+      const capabilityCheck = validateSkillCapabilities({
+        policy: effectivePolicy,
+        capabilities: entry.manifest.capabilities,
+      });
+      if (!capabilityCheck.ok) {
+        skillsLogger.warn(
+          `Skipping skill "${skill.name}" due to blocked capabilities: ${capabilityCheck.blocked.join(", ")}`,
+        );
+        continue;
+      }
+    }
+
+    entry.security = {
+      effectivePolicy,
+    };
+    skillEntries.push(entry);
+  }
   return skillEntries;
 }
 
@@ -215,6 +262,7 @@ export function buildWorkspaceSkillSnapshot(
     config?: OpenClawConfig;
     managedSkillsDir?: string;
     bundledSkillsDir?: string;
+    agentId?: string;
     entries?: SkillEntry[];
     /** If provided, only include skills with these names */
     skillFilter?: string[];
@@ -254,6 +302,7 @@ export function buildWorkspaceSkillsPrompt(
     config?: OpenClawConfig;
     managedSkillsDir?: string;
     bundledSkillsDir?: string;
+    agentId?: string;
     entries?: SkillEntry[];
     /** If provided, only include skills with these names */
     skillFilter?: string[];
@@ -302,6 +351,7 @@ export function loadWorkspaceSkillEntries(
     config?: OpenClawConfig;
     managedSkillsDir?: string;
     bundledSkillsDir?: string;
+    agentId?: string;
   },
 ): SkillEntry[] {
   return loadSkillEntries(workspaceDir, opts);
@@ -419,6 +469,7 @@ export function buildWorkspaceSkillCommandSpecs(
     config?: OpenClawConfig;
     managedSkillsDir?: string;
     bundledSkillsDir?: string;
+    agentId?: string;
     entries?: SkillEntry[];
     skillFilter?: string[];
     eligibility?: SkillEligibilityContext;

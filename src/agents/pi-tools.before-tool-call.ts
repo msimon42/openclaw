@@ -1,12 +1,17 @@
+import type { OpenClawConfig } from "../config/config.js";
 import type { AnyAgentTool } from "./tools/common.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { isPlainObject } from "../utils.js";
+import { evaluateSkillToolCallAccess } from "./skills/security.js";
+import { loadWorkspaceSkillEntries } from "./skills/workspace.js";
 import { normalizeToolName } from "./tool-policy.js";
 
 type HookContext = {
   agentId?: string;
   sessionKey?: string;
+  config?: OpenClawConfig;
+  workspaceDir?: string;
 };
 
 type HookOutcome = { blocked: true; reason: string } | { blocked: false; params: unknown };
@@ -16,6 +21,74 @@ const BEFORE_TOOL_CALL_WRAPPED = Symbol("beforeToolCallWrapped");
 const adjustedParamsByToolCallId = new Map<string, unknown>();
 const MAX_TRACKED_ADJUSTED_PARAMS = 1024;
 
+function resolveSkillName(params: unknown): string | undefined {
+  if (!isPlainObject(params)) {
+    return undefined;
+  }
+  const skillName = params.skillName;
+  if (typeof skillName !== "string") {
+    return undefined;
+  }
+  const trimmed = skillName.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function resolveSkillSecurityDecision(args: {
+  toolName: string;
+  params: unknown;
+  ctx?: HookContext;
+}): HookOutcome | undefined {
+  const skillName = resolveSkillName(args.params);
+  if (!skillName) {
+    return undefined;
+  }
+  if (!args.ctx?.workspaceDir?.trim()) {
+    return {
+      blocked: true,
+      reason: `Skill runtime guard blocked tool call: workspace context missing for skill "${skillName}"`,
+    };
+  }
+  if (!args.ctx.config) {
+    return {
+      blocked: true,
+      reason: `Skill runtime guard blocked tool call: config context missing for skill "${skillName}"`,
+    };
+  }
+  const skillEntries = loadWorkspaceSkillEntries(args.ctx.workspaceDir, {
+    config: args.ctx.config,
+    agentId: args.ctx.agentId,
+  });
+  const entry = skillEntries.find(
+    (candidate) => candidate.skill.name.trim().toLowerCase() === skillName.toLowerCase(),
+  );
+  if (!entry) {
+    return {
+      blocked: true,
+      reason: `Skill runtime guard blocked tool call: skill "${skillName}" is not loadable`,
+    };
+  }
+  const policy = entry.security?.effectivePolicy;
+  if (!policy) {
+    return {
+      blocked: true,
+      reason: `Skill runtime guard blocked tool call: no effective policy for "${skillName}"`,
+    };
+  }
+  const decision = evaluateSkillToolCallAccess({
+    toolName: args.toolName,
+    toolParams: isPlainObject(args.params) ? args.params : {},
+    declaredCapabilities: entry.manifest?.capabilities ?? [],
+    policy,
+  });
+  if (decision.allowed) {
+    return undefined;
+  }
+  return {
+    blocked: true,
+    reason: `Skill runtime guard blocked tool call: ${decision.reason ?? "denied by policy"}`,
+  };
+}
+
 export async function runBeforeToolCallHook(args: {
   toolName: string;
   params: unknown;
@@ -24,6 +97,14 @@ export async function runBeforeToolCallHook(args: {
 }): Promise<HookOutcome> {
   const toolName = normalizeToolName(args.toolName || "tool");
   const params = args.params;
+  const securityDecision = resolveSkillSecurityDecision({
+    toolName,
+    params,
+    ctx: args.ctx,
+  });
+  if (securityDecision?.blocked) {
+    return securityDecision;
+  }
 
   const hookRunner = getGlobalHookRunner();
   if (!hookRunner?.hasHooks("before_tool_call")) {

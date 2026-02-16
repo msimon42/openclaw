@@ -1,4 +1,5 @@
 import type { Skill } from "@mariozechner/pi-coding-agent";
+import type { ResolvedSkillPolicy, SkillManifest } from "./security.js";
 
 export type SkillInstallSpec = {
   id?: string;
@@ -56,6 +57,10 @@ export type SkillCommandSpec = {
   dispatch?: SkillCommandDispatchSpec;
 };
 
+export type SkillSecurityState = {
+  effectivePolicy: ResolvedSkillPolicy;
+};
+
 export type SkillsInstallPreferences = {
   preferBrew: boolean;
   nodeManager: "npm" | "pnpm" | "yarn" | "bun";
@@ -68,6 +73,8 @@ export type SkillEntry = {
   frontmatter: ParsedSkillFrontmatter;
   metadata?: OpenClawSkillMetadata;
   invocation?: SkillInvocationPolicy;
+  manifest?: SkillManifest;
+  security?: SkillSecurityState;
 };
 
 export type SkillEligibilityContext = {

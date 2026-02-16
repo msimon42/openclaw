@@ -80,6 +80,28 @@ export function registerSkillsCli(program: Command) {
       }
     });
 
+  skills
+    .command("audit")
+    .description("Run a static security audit across loaded skills (JSON report)")
+    .option("--agent <id>", "Agent id to resolve workspace/policy context")
+    .action(async (opts: { agent?: string }) => {
+      try {
+        const config = loadConfig();
+        const agentId = opts.agent?.trim() || resolveDefaultAgentId(config);
+        const workspaceDir = resolveAgentWorkspaceDir(config, agentId);
+        const { auditWorkspaceSkills } = await import("../agents/skills/audit.js");
+        const report = await auditWorkspaceSkills({
+          workspaceDir,
+          config,
+          agentId,
+        });
+        defaultRuntime.log(JSON.stringify(report, null, 2));
+      } catch (err) {
+        defaultRuntime.error(String(err));
+        defaultRuntime.exit(1);
+      }
+    });
+
   // Default action (no subcommand) - show list
   skills.action(async () => {
     try {

@@ -1,0 +1,7 @@
+{
+  "id": "feishu-drive",
+  "name": "feishu-drive",
+  "version": "1.0.0",
+  "entry": "SKILL.md",
+  "capabilities": ["model.invoke"]
+}

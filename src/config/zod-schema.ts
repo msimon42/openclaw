@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ToolsSchema } from "./zod-schema.agent-runtime.js";
+import { SkillPolicySchema, ToolsSchema } from "./zod-schema.agent-runtime.js";
 import { AgentsSchema, AudioSchema, BindingsSchema, BroadcastSchema } from "./zod-schema.agents.js";
 import { ApprovalsSchema } from "./zod-schema.approvals.js";
 import { HexColorSchema, ModelsConfigSchema } from "./zod-schema.core.js";
@@ -562,6 +562,7 @@ export const OpenClawSchema = z
     skills: z
       .object({
         allowBundled: z.array(z.string()).optional(),
+        policy: SkillPolicySchema.optional(),
         load: z
           .object({
             extraDirs: z.array(z.string()).optional(),
@@ -588,6 +589,7 @@ export const OpenClawSchema = z
                 apiKey: z.string().optional().register(sensitive),
                 env: z.record(z.string(), z.string()).optional(),
                 config: z.record(z.string(), z.unknown()).optional(),
+                policy: SkillPolicySchema.optional(),
               })
               .strict(),
           )

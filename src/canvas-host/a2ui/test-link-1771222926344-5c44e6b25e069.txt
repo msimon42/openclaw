@@ -1,0 +1,1 @@
+/Users/matthewsimon/projects/openclaw/package.json
