@@ -156,6 +156,18 @@ export async function runAgentTurnWithFallback(params: {
         provider: params.followupRun.run.provider,
         model: params.followupRun.run.model,
         agentDir: params.followupRun.run.agentDir,
+        requestId: runId,
+        routerInput: {
+          message: params.commandBody,
+          channel:
+            params.followupRun.run.messageProvider ??
+            params.sessionCtx.Provider?.trim().toLowerCase() ??
+            undefined,
+          hasUrls:
+            /\bhttps?:\/\/\S+/i.test(params.commandBody) ||
+            /\bx\.com\/\S+/i.test(params.commandBody),
+          repoContext: "unknown",
+        },
         fallbacksOverride: resolveAgentModelFallbacksOverride(
           params.followupRun.run.config,
           resolveAgentIdFromSessionKey(params.followupRun.run.sessionKey),

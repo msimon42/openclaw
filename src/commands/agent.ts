@@ -522,6 +522,7 @@ export async function agentCommand(
         opts.replyChannel ?? opts.channel,
       );
       const spawnedBy = opts.spawnedBy ?? sessionEntry?.spawnedBy;
+      const hasUrls = /\bhttps?:\/\/\S+/i.test(body) || /\bx\.com\/\S+/i.test(body);
       // Keep fallback candidate resolution centralized so session model overrides,
       // per-agent overrides, and default fallbacks stay consistent across callers.
       const effectiveFallbacksOverride = resolveEffectiveModelFallbacks({
@@ -538,6 +539,28 @@ export async function agentCommand(
         provider,
         model,
         agentDir,
+        requestId: runId,
+        routerInput: {
+          message: body,
+          channel: messageChannel,
+          commandModelOverride: storedModelOverride,
+          hasUrls,
+          repoContext: "unknown",
+        },
+        routerDebug: opts.modelRouterDebug === true,
+        onRouterDecision: (decision) => {
+          if (!opts.modelRouterDebug) {
+            return;
+          }
+          const payload = {
+            route: decision.plan?.route ?? null,
+            primary: `${decision.provider}/${decision.model}`,
+            fallbacks: decision.fallbacksOverride ?? [],
+            rationale: decision.plan?.rationale ?? [],
+            tags: decision.plan?.tags ?? [],
+          };
+          runtime.log(`[model-router] ${JSON.stringify(payload, null, 2)}`);
+        },
         fallbacksOverride: effectiveFallbacksOverride,
         run: (providerOverride, modelOverride) => {
           const isFallbackRetry = fallbackAttemptIndex > 0;

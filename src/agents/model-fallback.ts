@@ -1,17 +1,26 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { FailoverReason } from "./pi-embedded-helpers.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import {
   ensureAuthProfileStore,
   isProfileInCooldown,
   resolveAuthProfileOrder,
 } from "./auth-profiles.js";
+import { lookupContextTokens } from "./context.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
 import {
+  FailoverError,
   coerceToFailoverError,
   describeFailoverError,
   isFailoverError,
   isTimeoutError,
 } from "./failover-error.js";
+import {
+  assertModelRouterAllowlistSafe,
+  resolveModelRoutingDecision,
+  type ModelRouterInput,
+  type ResolvedModelRouterDecision,
+} from "./model-router.js";
 import {
   buildConfiguredAllowlistKeys,
   buildModelAliasIndex,
@@ -21,6 +30,8 @@ import {
   resolveModelRefFromString,
 } from "./model-selection.js";
 import { isLikelyContextOverflowError } from "./pi-embedded-helpers.js";
+
+const log = createSubsystemLogger("agents/model-routing");
 
 type ModelCandidate = {
   provider: string;
@@ -35,6 +46,28 @@ type FallbackAttempt = {
   status?: number;
   code?: string;
 };
+
+type ModelFallbackTerminalReason = "invalid_api_key" | "model_not_allowed";
+
+const INVALID_API_KEY_RE =
+  /invalid[_\s-]?api[_\s-]?key|incorrect api key|api key.*invalid|authentication.*invalid/i;
+const MODEL_NOT_ALLOWED_RE =
+  /model.*not allowed|model_not_allowed|allowlist (?:violation|miss|mismatch)|not in allowlist|access.*to model.*denied/i;
+const TOOL_CALL_PARSE_RE =
+  /tool[_\s-]?call.*(?:parse|parsing|invalid|schema)|invalid tool(?:[\s-]arguments?)?|json parse|unexpected end of json/i;
+const RETRYABLE_NETWORK_CODE_RE =
+  /^(?:econnrefused|econnreset|etimedout|esockettimedout|ehostunreach|enotfound)$/i;
+const RETRYABLE_SERVER_STATUS_MIN = 500;
+const CIRCUIT_BREAKER_THRESHOLD = 3;
+const CIRCUIT_BREAKER_WINDOW_MS = 60_000;
+const CIRCUIT_BREAKER_OPEN_MS = 60_000;
+
+type CircuitState = {
+  failures: number[];
+  openUntil?: number;
+};
+
+const candidateCircuitState = new Map<string, CircuitState>();
 
 /**
  * Fallback abort check. Only treats explicit AbortError names as user aborts.
@@ -80,6 +113,261 @@ function createModelCandidateCollector(allowlist: Set<string> | null | undefined
   return { candidates, addCandidate };
 }
 
+function classifyTerminalErrorReason(err: unknown): ModelFallbackTerminalReason | null {
+  const described = describeFailoverError(err);
+  const message = described.message || "";
+  const code = (described.code ?? "").toLowerCase();
+  if (
+    INVALID_API_KEY_RE.test(message) ||
+    code === "invalid_api_key" ||
+    code === "invalid-api-key" ||
+    code === "api_key_invalid"
+  ) {
+    return "invalid_api_key";
+  }
+  if (MODEL_NOT_ALLOWED_RE.test(message) || code === "model_not_allowed") {
+    return "model_not_allowed";
+  }
+  return null;
+}
+
+function buildCandidateKey(provider: string, model: string): string {
+  return modelKey(provider, model);
+}
+
+function pruneCircuitWindow(state: CircuitState, now: number) {
+  state.failures = state.failures.filter(
+    (timestamp) => now - timestamp <= CIRCUIT_BREAKER_WINDOW_MS,
+  );
+}
+
+function isCircuitOpen(provider: string, model: string, now: number): boolean {
+  const state = candidateCircuitState.get(buildCandidateKey(provider, model));
+  if (!state?.openUntil) {
+    return false;
+  }
+  if (state.openUntil <= now) {
+    state.openUntil = undefined;
+    pruneCircuitWindow(state, now);
+    return false;
+  }
+  return true;
+}
+
+function noteCircuitFailure(params: {
+  provider: string;
+  model: string;
+  reason?: FailoverReason;
+  status?: number;
+  code?: string;
+}) {
+  const now = Date.now();
+  const shouldRecord =
+    params.reason === "timeout" ||
+    params.reason === "rate_limit" ||
+    (typeof params.status === "number" && params.status >= RETRYABLE_SERVER_STATUS_MIN) ||
+    (typeof params.code === "string" && RETRYABLE_NETWORK_CODE_RE.test(params.code));
+  if (!shouldRecord) {
+    return;
+  }
+
+  const key = buildCandidateKey(params.provider, params.model);
+  const state = candidateCircuitState.get(key) ?? { failures: [] };
+  pruneCircuitWindow(state, now);
+  state.failures.push(now);
+  if (state.failures.length >= CIRCUIT_BREAKER_THRESHOLD) {
+    state.openUntil = now + CIRCUIT_BREAKER_OPEN_MS;
+  }
+  candidateCircuitState.set(key, state);
+}
+
+function getRecordStringValue(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const candidate = (value as Record<string, unknown>)[key];
+  if (typeof candidate !== "string") {
+    return undefined;
+  }
+  const trimmed = candidate.trim();
+  return trimmed || undefined;
+}
+
+function getRecordNumberValue(value: unknown, key: string): number | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const candidate = (value as Record<string, unknown>)[key];
+  if (typeof candidate === "number" && Number.isFinite(candidate)) {
+    return candidate;
+  }
+  return undefined;
+}
+
+function coerceRetryableFailoverError(params: {
+  err: unknown;
+  provider: string;
+  model: string;
+}): FailoverError | null {
+  const direct = coerceToFailoverError(params.err, {
+    provider: params.provider,
+    model: params.model,
+  });
+  if (direct) {
+    return direct;
+  }
+  const described = describeFailoverError(params.err);
+  const message = described.message || "";
+  const code = described.code ?? getRecordStringValue(params.err, "code");
+  const status = described.status ?? getRecordNumberValue(params.err, "status");
+  const lower = message.toLowerCase();
+  if (
+    (typeof status === "number" && status >= RETRYABLE_SERVER_STATUS_MIN) ||
+    (typeof code === "string" && RETRYABLE_NETWORK_CODE_RE.test(code))
+  ) {
+    return new FailoverError(message || "retryable transport error", {
+      reason: "timeout",
+      provider: params.provider,
+      model: params.model,
+      status,
+      code,
+      cause: params.err instanceof Error ? params.err : undefined,
+    });
+  }
+  if (TOOL_CALL_PARSE_RE.test(lower)) {
+    return new FailoverError(message || "tool-call parse failure", {
+      reason: "format",
+      provider: params.provider,
+      model: params.model,
+      status,
+      code,
+      cause: params.err instanceof Error ? params.err : undefined,
+    });
+  }
+  return null;
+}
+
+function extractTokenUsage(result: unknown): { tokensIn?: number; tokensOut?: number } {
+  if (!result || typeof result !== "object") {
+    return {};
+  }
+  const meta = (result as { meta?: unknown }).meta;
+  if (!meta || typeof meta !== "object") {
+    return {};
+  }
+  const agentMeta = (meta as { agentMeta?: unknown }).agentMeta;
+  if (!agentMeta || typeof agentMeta !== "object") {
+    return {};
+  }
+  const usage = (agentMeta as { usage?: unknown }).usage;
+  if (usage && typeof usage === "object") {
+    const tokensIn = getRecordNumberValue(usage, "input");
+    const tokensOut = getRecordNumberValue(usage, "output");
+    if (tokensIn !== undefined || tokensOut !== undefined) {
+      return { tokensIn, tokensOut };
+    }
+  }
+  const promptTokens = getRecordNumberValue(agentMeta, "promptTokens");
+  const outputTokens = getRecordNumberValue(agentMeta, "outputTokens");
+  return { tokensIn: promptTokens, tokensOut: outputTokens };
+}
+
+function formatTerminalError(reason: ModelFallbackTerminalReason, err: unknown): Error {
+  const described = describeFailoverError(err);
+  const message = described.message || "model request failed";
+  if (reason === "model_not_allowed") {
+    return new Error(
+      `Model request blocked by allowlist or provider policy: ${message}. Fix agents.defaults.models / model allowlist configuration and retry.`,
+    );
+  }
+  return new Error(
+    `Model authentication failed (${reason}): ${message}. Fix provider credentials before retrying.`,
+  );
+}
+
+function estimateModelContextWindow(params: {
+  cfg: OpenClawConfig | undefined;
+  provider: string;
+  model: string;
+}): number | undefined {
+  const direct = params.cfg?.models?.providers?.[params.provider]?.models?.find(
+    (candidate) => candidate.id === params.model,
+  )?.contextWindow;
+  if (typeof direct === "number" && Number.isFinite(direct) && direct > 0) {
+    return Math.floor(direct);
+  }
+  const discovered = lookupContextTokens(params.model);
+  if (typeof discovered === "number" && Number.isFinite(discovered) && discovered > 0) {
+    return Math.floor(discovered);
+  }
+  return undefined;
+}
+
+function resolveNextLikelyLargerContextCandidate(params: {
+  cfg: OpenClawConfig | undefined;
+  candidates: ModelCandidate[];
+  startIndex: number;
+  failedProvider: string;
+  failedModel: string;
+}): number | null {
+  const failedWindow = estimateModelContextWindow({
+    cfg: params.cfg,
+    provider: params.failedProvider,
+    model: params.failedModel,
+  });
+  if (params.startIndex >= params.candidates.length) {
+    return null;
+  }
+  if (failedWindow === undefined) {
+    return params.startIndex;
+  }
+  let firstUnknown: number | null = null;
+  for (let i = params.startIndex; i < params.candidates.length; i += 1) {
+    const candidate = params.candidates[i];
+    if (!candidate) {
+      continue;
+    }
+    const contextWindow = estimateModelContextWindow({
+      cfg: params.cfg,
+      provider: candidate.provider,
+      model: candidate.model,
+    });
+    if (contextWindow === undefined) {
+      if (firstUnknown === null) {
+        firstUnknown = i;
+      }
+      continue;
+    }
+    if (contextWindow > failedWindow) {
+      return i;
+    }
+  }
+  return firstUnknown;
+}
+
+function emitModelRoutingLog(params: {
+  requestId?: string;
+  chosenModel?: { provider: string; model: string };
+  attempts: FallbackAttempt[];
+  failReason?: string;
+  latencyMs: number;
+  tokensIn?: number;
+  tokensOut?: number;
+}) {
+  const payload = {
+    request_id: params.requestId ?? "",
+    chosen_model: params.chosenModel
+      ? `${params.chosenModel.provider}/${params.chosenModel.model}`
+      : null,
+    fallback_hops: params.attempts.map((attempt) => `${attempt.provider}/${attempt.model}`),
+    fail_reason: params.failReason ?? null,
+    latency_ms: params.latencyMs,
+    tokens_in: params.tokensIn ?? null,
+    tokens_out: params.tokensOut ?? null,
+  };
+  log.info(`[model-routing] ${JSON.stringify(payload)}`);
+}
+
 type ModelFallbackErrorHandler = (attempt: {
   provider: string;
   model: string;
@@ -94,6 +382,55 @@ type ModelFallbackRunResult<T> = {
   model: string;
   attempts: FallbackAttempt[];
 };
+
+function resolveRoutingDecision(params: {
+  cfg: OpenClawConfig | undefined;
+  provider: string;
+  model: string;
+  fallbacksOverride?: string[];
+  routerInput?: ModelRouterInput;
+  preserveNonDefaultSelection?: boolean;
+  routerDebug?: boolean;
+}): {
+  provider: string;
+  model: string;
+  fallbacksOverride?: string[];
+  decision?: ResolvedModelRouterDecision;
+} {
+  if (!params.cfg || !params.routerInput) {
+    return {
+      provider: params.provider,
+      model: params.model,
+      fallbacksOverride: params.fallbacksOverride,
+    };
+  }
+  const decision = resolveModelRoutingDecision({
+    cfg: params.cfg,
+    input: params.routerInput,
+    provider: params.provider,
+    model: params.model,
+    fallbacksOverride: params.fallbacksOverride,
+    preserveNonDefaultSelection: params.preserveNonDefaultSelection ?? true,
+    forceDebug: params.routerDebug,
+  });
+  if (decision.plan) {
+    assertModelRouterAllowlistSafe({
+      cfg: params.cfg,
+      plan: decision.plan,
+      defaultProvider: DEFAULT_PROVIDER,
+    });
+  }
+  return {
+    provider: decision.provider,
+    model: decision.model,
+    fallbacksOverride: decision.fallbacksOverride,
+    decision,
+  };
+}
+
+export function __resetModelFallbackCircuitForTests() {
+  candidateCircuitState.clear();
+}
 
 function resolveImageFallbackCandidates(params: {
   cfg: OpenClawConfig | undefined;
@@ -222,25 +559,55 @@ export async function runWithModelFallback<T>(params: {
   provider: string;
   model: string;
   agentDir?: string;
+  requestId?: string;
+  routerInput?: ModelRouterInput;
+  preserveNonDefaultSelection?: boolean;
+  routerDebug?: boolean;
+  onRouterDecision?: (decision: ResolvedModelRouterDecision) => void;
   /** Optional explicit fallbacks list; when provided (even empty), replaces agents.defaults.model.fallbacks. */
   fallbacksOverride?: string[];
   run: (provider: string, model: string) => Promise<T>;
   onError?: ModelFallbackErrorHandler;
 }): Promise<ModelFallbackRunResult<T>> {
-  const candidates = resolveFallbackCandidates({
+  const startedAt = Date.now();
+  const routed = resolveRoutingDecision({
     cfg: params.cfg,
     provider: params.provider,
     model: params.model,
     fallbacksOverride: params.fallbacksOverride,
+    routerInput: params.routerInput,
+    preserveNonDefaultSelection: params.preserveNonDefaultSelection,
+    routerDebug: params.routerDebug,
+  });
+  if (routed.decision) {
+    params.onRouterDecision?.(routed.decision);
+  }
+  const candidates = resolveFallbackCandidates({
+    cfg: params.cfg,
+    provider: routed.provider,
+    model: routed.model,
+    fallbacksOverride: routed.fallbacksOverride,
   });
   const authStore = params.cfg
     ? ensureAuthProfileStore(params.agentDir, { allowKeychainPrompt: false })
     : null;
   const attempts: FallbackAttempt[] = [];
   let lastError: unknown;
+  let lastFailReason: string | undefined;
 
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
+    const now = Date.now();
+    if (isCircuitOpen(candidate.provider, candidate.model, now)) {
+      attempts.push({
+        provider: candidate.provider,
+        model: candidate.model,
+        error: `Circuit breaker open for ${candidate.provider}/${candidate.model}`,
+        reason: "rate_limit",
+      });
+      lastFailReason = "circuit_open";
+      continue;
+    }
     if (authStore) {
       const profileIds = resolveAuthProfileOrder({
         cfg: params.cfg,
@@ -257,11 +624,24 @@ export async function runWithModelFallback<T>(params: {
           error: `Provider ${candidate.provider} is in cooldown (all profiles unavailable)`,
           reason: "rate_limit",
         });
+        lastFailReason = "provider_cooldown";
         continue;
       }
     }
     try {
       const result = await params.run(candidate.provider, candidate.model);
+      const usage = extractTokenUsage(result);
+      emitModelRoutingLog({
+        requestId: params.requestId,
+        chosenModel: {
+          provider: candidate.provider,
+          model: candidate.model,
+        },
+        attempts,
+        latencyMs: Date.now() - startedAt,
+        tokensIn: usage.tokensIn,
+        tokensOut: usage.tokensOut,
+      });
       return {
         result,
         provider: candidate.provider,
@@ -270,31 +650,77 @@ export async function runWithModelFallback<T>(params: {
       };
     } catch (err) {
       if (shouldRethrowAbort(err)) {
+        emitModelRoutingLog({
+          requestId: params.requestId,
+          attempts,
+          failReason: "abort",
+          latencyMs: Date.now() - startedAt,
+        });
         throw err;
       }
-      // Context overflow errors should be handled by the inner runner's
-      // compaction/retry logic, not by model fallback.  If one escapes as a
-      // throw, rethrow it immediately rather than trying a different model
-      // that may have a smaller context window and fail worse.
       const errMessage = err instanceof Error ? err.message : String(err);
-      if (isLikelyContextOverflowError(errMessage)) {
-        throw err;
+      const terminalReason = classifyTerminalErrorReason(err);
+      if (terminalReason) {
+        const terminal = formatTerminalError(terminalReason, err);
+        emitModelRoutingLog({
+          requestId: params.requestId,
+          attempts,
+          failReason: terminalReason,
+          latencyMs: Date.now() - startedAt,
+        });
+        throw terminal;
       }
-      const normalized =
-        coerceToFailoverError(err, {
+      if (isLikelyContextOverflowError(errMessage)) {
+        const nextIndex = resolveNextLikelyLargerContextCandidate({
+          cfg: params.cfg,
+          candidates,
+          startIndex: i + 1,
+          failedProvider: candidate.provider,
+          failedModel: candidate.model,
+        });
+        attempts.push({
           provider: candidate.provider,
           model: candidate.model,
-        }) ?? err;
-      if (!isFailoverError(normalized)) {
+          error: errMessage || "context length exceeded",
+        });
+        lastError = err;
+        lastFailReason = "context_overflow";
+        if (nextIndex === null) {
+          break;
+        }
+        // Skip directly to the next larger-context candidate.
+        i = nextIndex - 1;
+        continue;
+      }
+      const normalized = coerceRetryableFailoverError({
+        err,
+        provider: candidate.provider,
+        model: candidate.model,
+      });
+      if (!normalized || !isFailoverError(normalized)) {
+        emitModelRoutingLog({
+          requestId: params.requestId,
+          attempts,
+          failReason: "non_retryable_error",
+          latencyMs: Date.now() - startedAt,
+        });
         throw err;
       }
 
       lastError = normalized;
       const described = describeFailoverError(normalized);
+      lastFailReason = described.reason ?? "retryable_error";
       attempts.push({
         provider: candidate.provider,
         model: candidate.model,
         error: described.message,
+        reason: described.reason,
+        status: described.status,
+        code: described.code,
+      });
+      noteCircuitFailure({
+        provider: candidate.provider,
+        model: candidate.model,
         reason: described.reason,
         status: described.status,
         code: described.code,
@@ -310,6 +736,12 @@ export async function runWithModelFallback<T>(params: {
   }
 
   if (attempts.length <= 1 && lastError) {
+    emitModelRoutingLog({
+      requestId: params.requestId,
+      attempts,
+      failReason: lastFailReason ?? "single_failure",
+      latencyMs: Date.now() - startedAt,
+    });
     throw lastError;
   }
   const summary =
@@ -323,6 +755,12 @@ export async function runWithModelFallback<T>(params: {
           )
           .join(" | ")
       : "unknown";
+  emitModelRoutingLog({
+    requestId: params.requestId,
+    attempts,
+    failReason: lastFailReason ?? "all_models_failed",
+    latencyMs: Date.now() - startedAt,
+  });
   throw new Error(`All models failed (${attempts.length || candidates.length}): ${summary}`, {
     cause: lastError instanceof Error ? lastError : undefined,
   });

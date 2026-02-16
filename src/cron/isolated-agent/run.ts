@@ -416,6 +416,13 @@ export async function runCronIsolatedAgentTurn(params: {
       provider,
       model,
       agentDir,
+      requestId: cronSession.sessionEntry.sessionId,
+      routerInput: {
+        message: commandBody,
+        channel: resolvedDelivery.channel,
+        hasUrls: /\bhttps?:\/\/\S+/i.test(commandBody) || /\bx\.com\/\S+/i.test(commandBody),
+        repoContext: "unknown",
+      },
       fallbacksOverride: resolveAgentModelFallbacksOverride(params.cfg, agentId),
       run: (providerOverride, modelOverride) => {
         if (isCliProvider(providerOverride, cfgWithAgentDefaults)) {
