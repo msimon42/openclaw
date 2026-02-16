@@ -248,6 +248,9 @@ jobs:
       - name: Check types and lint and oxfmt
         run: pnpm check
 
+      - name: Check foundation packages
+        run: pnpm check:foundation
+
   # Validate docs (format, lint, broken links) only when docs files changed.
   check-docs:
     needs: [docs-scope]

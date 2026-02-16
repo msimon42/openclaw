@@ -55,18 +55,18 @@ describe("runCommandWithTimeout", () => {
       [
         process.execPath,
         "-e",
-        'let i=0; const t=setInterval(() => { process.stdout.write("."); i += 1; if (i >= 3) { clearInterval(t); process.exit(0); } }, 20);',
+        'let i=0; const t=setInterval(() => { process.stdout.write("."); i += 1; if (i >= 10) { clearInterval(t); process.exit(0); } }, 50);',
       ],
       {
         timeoutMs: 5_000,
-        noOutputTimeoutMs: 100,
+        noOutputTimeoutMs: 300,
       },
     );
 
     expect(result.code).toBe(0);
     expect(result.termination).toBe("exit");
     expect(result.noOutputTimedOut).toBe(false);
-    expect(result.stdout.length).toBeGreaterThanOrEqual(3);
+    expect(result.stdout.length).toBeGreaterThanOrEqual(10);
   });
 
   it("reports global timeout termination when overall timeout elapses", async () => {
