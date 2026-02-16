@@ -1,0 +1,98 @@
+{
+  "id": "clawguardian",
+  "name": "ClawGuardian",
+  "description": "Intercepts tool calls and enforces policy, rate limits, and risk-based approval gates.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": { "type": "boolean" },
+      "policy": { "$ref": "#/definitions/policy" },
+      "toolPolicies": {
+        "type": "object",
+        "additionalProperties": { "$ref": "#/definitions/policy" }
+      },
+      "riskTiers": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "low": { "$ref": "#/definitions/riskTier" },
+          "medium": { "$ref": "#/definitions/riskTier" },
+          "high": { "$ref": "#/definitions/riskTier" },
+          "critical": { "$ref": "#/definitions/riskTier" }
+        }
+      },
+      "highRiskTools": {
+        "type": "array",
+        "items": { "type": "string", "minLength": 1 }
+      },
+      "rateLimit": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "windowMs": { "type": "integer", "minimum": 1 },
+          "maxCalls": { "type": "integer", "minimum": 1 },
+          "scope": {
+            "type": "string",
+            "enum": ["session", "agent", "global"]
+          }
+        }
+      }
+    },
+    "definitions": {
+      "policy": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "allow": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "shell.exec",
+                "network.fetch",
+                "filesystem.read",
+                "filesystem.write",
+                "tool.invoke",
+                "model.invoke",
+                "plugin.load"
+              ]
+            }
+          },
+          "deny": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "shell.exec",
+                "network.fetch",
+                "filesystem.read",
+                "filesystem.write",
+                "tool.invoke",
+                "model.invoke",
+                "plugin.load"
+              ]
+            }
+          },
+          "allowDomains": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "writePaths": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "requireApproval": { "type": "boolean" }
+        }
+      },
+      "riskTier": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "requireApproval": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}
