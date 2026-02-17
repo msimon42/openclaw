@@ -1,3 +1,5 @@
+import type { AuditFilterState, SpendWindow } from "../services/observability-store.ts";
+import type { ObservabilityStreamService } from "../services/observability-stream.ts";
 import type { EventLogEntry } from "./app-events.ts";
 import type { CompactionStatus } from "./app-tool-stream.ts";
 import type { DevicePairingList } from "./controllers/devices.ts";
@@ -219,6 +221,12 @@ export type AppViewState = {
   logsLimit: number;
   logsMaxBytes: number;
   logsAtBottom: boolean;
+  observabilitySection: "audit" | "spend" | "health";
+  observabilityFilter: AuditFilterState;
+  observabilitySelectedEventId: string | null;
+  observabilitySpendWindow: SpendWindow;
+  observabilityRenderVersion: number;
+  observabilityStream: ObservabilityStreamService;
   client: GatewayBrowserClient | null;
   refreshSessionsAfterChat: Set<string>;
   connect: () => void;

@@ -1,5 +1,6 @@
 import { LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import type { AuditFilterState, SpendWindow } from "../services/observability-store.ts";
 import type { EventLogEntry } from "./app-events.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import type { DevicePairingList } from "./controllers/devices.ts";
@@ -29,6 +30,7 @@ import type {
   NostrProfile,
 } from "./types.ts";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
+import { ObservabilityStreamService } from "../services/observability-stream.ts";
 import {
   handleChannelConfigReload as handleChannelConfigReloadInternal,
   handleChannelConfigSave as handleChannelConfigSaveInternal,
@@ -323,8 +325,18 @@ export class OpenClawApp extends LitElement {
   @state() logsLimit = 500;
   @state() logsMaxBytes = 250_000;
   @state() logsAtBottom = true;
+  @state() observabilitySection: "audit" | "spend" | "health" = "audit";
+  @state() observabilityFilter: AuditFilterState = {};
+  @state() observabilitySelectedEventId: string | null = null;
+  @state() observabilitySpendWindow: SpendWindow = "15m";
+  @state() observabilityRenderVersion = 0;
 
   client: GatewayBrowserClient | null = null;
+  observabilityStream = new ObservabilityStreamService({
+    onUpdate: () => {
+      this.observabilityRenderVersion += 1;
+    },
+  });
   private chatScrollFrame: number | null = null;
   private chatScrollTimeout: number | null = null;
   private chatHasAutoScrolled = false;
