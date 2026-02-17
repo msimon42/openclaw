@@ -14,6 +14,10 @@ type BroadcastCall = {
   connIds: string[];
 };
 
+async function flushMicrotasks() {
+  await Promise.resolve();
+}
+
 function makeEvent(params: {
   eventId: string;
   traceId: string;
@@ -100,7 +104,7 @@ describe("GatewayObservabilityStream", () => {
     expect(initial.snapshot.events[0]?.eventId).toBe("e-1");
 
     stream.sendInitial("conn-1", initial);
-    vi.runAllTicks();
+    await flushMicrotasks();
 
     const snapshotEvent = broadcastCalls.find((entry) => entry.event === OBS_EVENT_SNAPSHOT);
     expect(snapshotEvent).toBeTruthy();
@@ -170,7 +174,7 @@ describe("GatewayObservabilityStream", () => {
       }),
     );
 
-    vi.runAllTicks();
+    await flushMicrotasks();
     expect(broadcastCalls.filter((entry) => entry.event === OBS_EVENT_EVENT)).toHaveLength(1);
 
     await vi.advanceTimersByTimeAsync(1_000);
@@ -222,7 +226,7 @@ describe("GatewayObservabilityStream", () => {
       }),
     );
 
-    vi.runAllTicks();
+    await flushMicrotasks();
     expect(broadcastCalls.filter((entry) => entry.event === OBS_EVENT_EVENT)).toHaveLength(0);
 
     stream.close();

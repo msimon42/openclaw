@@ -55,6 +55,7 @@ function createHost() {
       token: "",
       sessionKey: "main",
       lastActiveSessionKey: "main",
+      selectedAgentId: "main",
       theme: "system",
       chatFocusMode: false,
       chatShowThinking: true,

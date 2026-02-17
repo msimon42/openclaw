@@ -29,10 +29,16 @@ const mocks = vi.hoisted(() => ({
   fsStat: vi.fn(async () => null),
 }));
 
-vi.mock("../../config/config.js", () => ({
-  loadConfig: () => mocks.loadConfigReturn,
-  writeConfigFile: mocks.writeConfigFile,
-}));
+vi.mock("../../config/config.js", async () => {
+  const actual = await vi.importActual<typeof import("../../config/config.js")>(
+    "../../config/config.js",
+  );
+  return {
+    ...actual,
+    loadConfig: () => mocks.loadConfigReturn,
+    writeConfigFile: mocks.writeConfigFile,
+  };
+});
 
 vi.mock("../../commands/agents.config.js", () => ({
   applyAgentConfig: mocks.applyAgentConfig,
@@ -41,11 +47,17 @@ vi.mock("../../commands/agents.config.js", () => ({
   pruneAgentConfig: mocks.pruneAgentConfig,
 }));
 
-vi.mock("../../agents/agent-scope.js", () => ({
-  listAgentIds: () => ["main"],
-  resolveAgentDir: mocks.resolveAgentDir,
-  resolveAgentWorkspaceDir: mocks.resolveAgentWorkspaceDir,
-}));
+vi.mock("../../agents/agent-scope.js", async () => {
+  const actual = await vi.importActual<typeof import("../../agents/agent-scope.js")>(
+    "../../agents/agent-scope.js",
+  );
+  return {
+    ...actual,
+    listAgentIds: () => ["main"],
+    resolveAgentDir: mocks.resolveAgentDir,
+    resolveAgentWorkspaceDir: mocks.resolveAgentWorkspaceDir,
+  };
+});
 
 vi.mock("../../agents/workspace.js", async () => {
   const actual = await vi.importActual<typeof import("../../agents/workspace.js")>(
@@ -57,17 +69,27 @@ vi.mock("../../agents/workspace.js", async () => {
   };
 });
 
-vi.mock("../../config/sessions/paths.js", () => ({
-  resolveSessionTranscriptsDirForAgent: mocks.resolveSessionTranscriptsDirForAgent,
-}));
+vi.mock("../../config/sessions/paths.js", async () => {
+  const actual = await vi.importActual<typeof import("../../config/sessions/paths.js")>(
+    "../../config/sessions/paths.js",
+  );
+  return {
+    ...actual,
+    resolveSessionTranscriptsDirForAgent: mocks.resolveSessionTranscriptsDirForAgent,
+  };
+});
 
 vi.mock("../../browser/trash.js", () => ({
   movePathToTrash: mocks.movePathToTrash,
 }));
 
-vi.mock("../../utils.js", () => ({
-  resolveUserPath: (p: string) => `/resolved${p.startsWith("/") ? "" : "/"}${p}`,
-}));
+vi.mock("../../utils.js", async () => {
+  const actual = await vi.importActual<typeof import("../../utils.js")>("../../utils.js");
+  return {
+    ...actual,
+    resolveUserPath: (p: string) => `/resolved${p.startsWith("/") ? "" : "/"}${p}`,
+  };
+});
 
 vi.mock("../session-utils.js", () => ({
   listAgentsForGateway: mocks.listAgentsForGateway,
