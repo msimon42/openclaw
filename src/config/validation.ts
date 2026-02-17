@@ -12,6 +12,7 @@ import { loadPluginManifestRegistry } from "../plugins/manifest-registry.js";
 import { validateJsonSchemaValue } from "../plugins/schema-validator.js";
 import { isRecord } from "../utils.js";
 import { findDuplicateAgentDirs, formatDuplicateAgentDirError } from "./agent-dirs.js";
+import { findDuplicateAgentWorkspaces, formatDuplicateWorkspaceWarning } from "./agent-workspaces.js";
 import { applyAgentDefaults, applyModelDefaults, applySessionDefaults } from "./defaults.js";
 import { findLegacyConfigIssues } from "./legacy.js";
 import { OpenClawSchema } from "./zod-schema.js";
@@ -82,6 +83,140 @@ function validateIdentityAvatar(config: OpenClawConfig): ConfigValidationIssue[]
     }
   }
   return issues;
+}
+
+function collectKnownAgentIds(config: OpenClawConfig): Set<string> {
+  const ids = new Set<string>();
+  const list = config.agents?.list;
+  if (Array.isArray(list)) {
+    for (const entry of list) {
+      if (entry?.id?.trim()) {
+        ids.add(entry.id.trim().toLowerCase());
+      }
+    }
+  }
+  if (!ids.has("main")) {
+    ids.add("main");
+  }
+  return ids;
+}
+
+function bindingExactKey(binding: NonNullable<OpenClawConfig["bindings"]>[number]): string {
+  const match = binding.match;
+  return [
+    match.channel?.trim().toLowerCase() || "",
+    match.accountId?.trim().toLowerCase() || "default",
+    match.peer?.kind || "",
+    match.peer?.id || "",
+    match.guildId || "",
+    match.teamId || "",
+    Array.isArray(match.roles) ? match.roles.join(",") : "",
+  ].join("|");
+}
+
+function validateBindings(config: OpenClawConfig): {
+  issues: ConfigValidationIssue[];
+  warnings: ConfigValidationIssue[];
+} {
+  const issues: ConfigValidationIssue[] = [];
+  const warnings: ConfigValidationIssue[] = [];
+  const bindings = config.bindings;
+  if (!Array.isArray(bindings) || bindings.length === 0) {
+    return { issues, warnings };
+  }
+
+  const knownAgents = collectKnownAgentIds(config);
+  const exactMap = new Map<string, Set<string>>();
+  const broadByChannelAccount = new Map<string, Set<string>>();
+
+  for (const [index, binding] of bindings.entries()) {
+    const agentId = binding.agentId?.trim().toLowerCase();
+    if (!agentId || !knownAgents.has(agentId)) {
+      issues.push({
+        path: `bindings.${index}.agentId`,
+        message: `unknown agent id: ${binding.agentId}`,
+      });
+    }
+
+    const exact = bindingExactKey(binding);
+    const exactSet = exactMap.get(exact) ?? new Set<string>();
+    if (agentId) {
+      exactSet.add(agentId);
+    }
+    exactMap.set(exact, exactSet);
+
+    const match = binding.match;
+    const isBroad =
+      !match.peer && !match.guildId && !match.teamId && (!match.roles || match.roles.length === 0);
+    if (isBroad) {
+      const key = `${match.channel?.trim().toLowerCase() || ""}|${match.accountId?.trim().toLowerCase() || "default"}`;
+      const broadSet = broadByChannelAccount.get(key) ?? new Set<string>();
+      if (agentId) {
+        broadSet.add(agentId);
+      }
+      broadByChannelAccount.set(key, broadSet);
+    }
+  }
+
+  for (const [key, ids] of exactMap.entries()) {
+    if (ids.size <= 1) {
+      continue;
+    }
+    warnings.push({
+      path: "bindings",
+      message: `ambiguous binding overlap for ${key}; matching agents: ${Array.from(ids).join(", ")}`,
+    });
+  }
+
+  for (const [key, ids] of broadByChannelAccount.entries()) {
+    if (ids.size <= 1) {
+      continue;
+    }
+    warnings.push({
+      path: "bindings",
+      message: `multiple broad bindings for ${key}; fallback routing may be ambiguous: ${Array.from(ids).join(", ")}`,
+    });
+  }
+
+  return { issues, warnings };
+}
+
+function validateDmScopeRisk(config: OpenClawConfig): ConfigValidationIssue[] {
+  const bindings = config.bindings;
+  if (!Array.isArray(bindings) || bindings.length === 0) {
+    return [];
+  }
+  const dmScope = config.session?.dmScope ?? "main";
+  if (dmScope !== "main") {
+    return [];
+  }
+
+  const channels = new Set<string>();
+  const accounts = new Set<string>();
+  for (const binding of bindings) {
+    const channel = binding.match.channel?.trim();
+    if (channel) {
+      channels.add(channel.toLowerCase());
+    }
+    const accountId = binding.match.accountId?.trim();
+    if (accountId) {
+      accounts.add(accountId.toLowerCase());
+    }
+  }
+
+  const multiChannel = channels.size > 1;
+  const multiAccount = accounts.size > 1;
+  if (!multiChannel && !multiAccount) {
+    return [];
+  }
+
+  return [
+    {
+      path: "session.dmScope",
+      message:
+        "dmScope=main with multi-channel/multi-account bindings can merge unrelated DMs. Consider per-peer or per-account-channel-peer.",
+    },
+  ];
 }
 
 /**
@@ -196,6 +331,17 @@ function validateConfigObjectWithPluginsBase(
   const config = base.config;
   const issues: ConfigValidationIssue[] = [];
   const warnings: ConfigValidationIssue[] = [];
+  const duplicateWorkspaces = findDuplicateAgentWorkspaces(config);
+  if (duplicateWorkspaces.length > 0) {
+    warnings.push({
+      path: "agents.list",
+      message: formatDuplicateWorkspaceWarning(duplicateWorkspaces),
+    });
+  }
+  const bindingValidation = validateBindings(config);
+  issues.push(...bindingValidation.issues);
+  warnings.push(...bindingValidation.warnings);
+  warnings.push(...validateDmScopeRisk(config));
   const hasExplicitPluginsConfig =
     isRecord(raw) && Object.prototype.hasOwnProperty.call(raw, "plugins");
 
