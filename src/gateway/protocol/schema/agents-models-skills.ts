@@ -16,6 +16,11 @@ export const AgentSummarySchema = Type.Object(
   {
     id: NonEmptyString,
     name: Type.Optional(NonEmptyString),
+    displayName: Type.Optional(NonEmptyString),
+    lastActive: Type.Optional(Type.Integer({ minimum: 0 })),
+    status: Type.Optional(
+      Type.Union([Type.Literal("active"), Type.Literal("idle"), Type.Literal("offline")]),
+    ),
     identity: Type.Optional(
       Type.Object(
         {
@@ -160,6 +165,140 @@ export const AgentsFilesSetResultSchema = Type.Object(
     agentId: NonEmptyString,
     workspace: NonEmptyString,
     file: AgentsFileEntrySchema,
+  },
+  { additionalProperties: false },
+);
+
+export const DelegationArtifactRefSchema = Type.Object(
+  {
+    artifactId: NonEmptyString,
+    kind: NonEmptyString,
+    note: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+export const AgentsMessageParamsSchema = Type.Object(
+  {
+    fromAgentId: NonEmptyString,
+    toAgentId: NonEmptyString,
+    traceId: NonEmptyString,
+    sessionKey: Type.Optional(NonEmptyString),
+    message: NonEmptyString,
+    artifactRefs: Type.Optional(Type.Array(DelegationArtifactRefSchema, { maxItems: 64 })),
+    priority: Type.Optional(
+      Type.Union([
+        Type.Literal("low"),
+        Type.Literal("normal"),
+        Type.Literal("high"),
+        Type.Literal("urgent"),
+      ]),
+    ),
+    sourceRunId: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
+
+export const AgentsMessageResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    traceId: NonEmptyString,
+    sessionKey: NonEmptyString,
+    messageId: Type.Optional(NonEmptyString),
+    artifactRefs: Type.Array(DelegationArtifactRefSchema),
+  },
+  { additionalProperties: false },
+);
+
+export const AgentsCallLimitsSchema = Type.Object(
+  {
+    timeoutMs: Type.Optional(Type.Integer({ minimum: 100, maximum: 600_000 })),
+    maxDepth: Type.Optional(Type.Integer({ minimum: 1, maximum: 10 })),
+    maxCallsPerTrace: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+    maxToolCalls: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
+    dedupeWindowMs: Type.Optional(Type.Integer({ minimum: 1_000, maximum: 600_000 })),
+    pairRateLimitPerMinute: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+  },
+  { additionalProperties: false },
+);
+
+export const AgentsCallParamsSchema = Type.Object(
+  {
+    fromAgentId: NonEmptyString,
+    toAgentId: NonEmptyString,
+    traceId: NonEmptyString,
+    sessionKey: Type.Optional(NonEmptyString),
+    message: NonEmptyString,
+    artifactRefs: Type.Optional(Type.Array(DelegationArtifactRefSchema, { maxItems: 64 })),
+    limits: Type.Optional(AgentsCallLimitsSchema),
+    expectedSchema: Type.Optional(Type.Unknown()),
+    sourceRunId: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
+
+export const AgentsCallResultSchema = Type.Object(
+  {
+    status: Type.Union([
+      Type.Literal("ok"),
+      Type.Literal("error"),
+      Type.Literal("timeout"),
+      Type.Literal("blocked"),
+      Type.Literal("deduped"),
+    ]),
+    traceId: NonEmptyString,
+    sessionKey: NonEmptyString,
+    taskHash: NonEmptyString,
+    runId: Type.Optional(NonEmptyString),
+    summary: Type.String(),
+    artifacts: Type.Array(DelegationArtifactRefSchema),
+    error: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+export const ArtifactsPublishParamsSchema = Type.Object(
+  {
+    traceId: NonEmptyString,
+    createdByAgentId: NonEmptyString,
+    kind: Type.Optional(NonEmptyString),
+    content: Type.Unknown(),
+    ttlDays: Type.Optional(Type.Integer({ minimum: 1, maximum: 3650 })),
+    requestId: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
+
+export const ArtifactsPublishResultSchema = Type.Object(
+  {
+    artifactId: NonEmptyString,
+    kind: NonEmptyString,
+    traceId: NonEmptyString,
+    sizeBytes: Type.Integer({ minimum: 0 }),
+    payloadPath: NonEmptyString,
+    metaPath: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const ArtifactsFetchParamsSchema = Type.Object(
+  {
+    traceId: NonEmptyString,
+    fetchedByAgentId: NonEmptyString,
+    artifactId: NonEmptyString,
+    requestId: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
+
+export const ArtifactsFetchResultSchema = Type.Object(
+  {
+    artifactId: NonEmptyString,
+    kind: NonEmptyString,
+    traceId: NonEmptyString,
+    metadata: Type.Unknown(),
+    content: Type.Unknown(),
+    raw: Type.String(),
   },
   { additionalProperties: false },
 );

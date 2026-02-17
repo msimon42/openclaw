@@ -419,6 +419,7 @@ export function createOpenClawCodingTools(options?: {
       requireExplicitMessageTarget: options?.requireExplicitMessageTarget,
       disableMessageTool: options?.disableMessageTool,
       requesterAgentIdOverride: agentId,
+      runId: options?.runId,
     }),
   ];
   // Security: treat unknown/undefined as unauthorized (opt-in, not opt-out)

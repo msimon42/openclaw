@@ -82,6 +82,10 @@ export type ObsAuditMetrics = {
   fallbackHops?: number;
   toolCalls?: number;
   blockedToolCalls?: number;
+  delegationCalls?: number;
+  delegationMessages?: number;
+  artifactsPublished?: number;
+  artifactsFetched?: number;
 };
 
 export type ObsEventRecord = {

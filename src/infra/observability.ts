@@ -37,6 +37,10 @@ type RequestState = {
   tokensIn: number;
   tokensOut: number;
   costUsd: number;
+  delegationCalls: number;
+  delegationMessages: number;
+  artifactsPublished: number;
+  artifactsFetched: number;
 };
 
 type ObservabilityRuntime = {
@@ -307,9 +311,47 @@ function ensureRequestState(params: {
     tokensIn: 0,
     tokensOut: 0,
     costUsd: 0,
+    delegationCalls: 0,
+    delegationMessages: 0,
+    artifactsPublished: 0,
+    artifactsFetched: 0,
   };
   params.rt.requestStateById.set(params.requestId, created);
   return created;
+}
+
+function findRequestStateByTraceId(rt: ObservabilityRuntime, traceId: string): RequestState | null {
+  const trimmed = traceId.trim();
+  if (!trimmed) {
+    return null;
+  }
+  for (const state of rt.requestStateById.values()) {
+    if (state.traceId === trimmed) {
+      return state;
+    }
+  }
+  return null;
+}
+
+function resolveDelegationState(params: {
+  rt: ObservabilityRuntime;
+  requestId?: string;
+  traceId?: string;
+  agentId?: string;
+}): RequestState | null {
+  const requestId = params.requestId?.trim();
+  if (requestId) {
+    return ensureRequestState({
+      rt: params.rt,
+      requestId,
+      agentId: params.agentId,
+    });
+  }
+  const traceId = params.traceId?.trim();
+  if (traceId) {
+    return findRequestStateByTraceId(params.rt, traceId);
+  }
+  return null;
 }
 
 function emitAudit(rt: ObservabilityRuntime, input: AuditEventInput) {
@@ -364,6 +406,10 @@ export function observeAgentEvent(event: AgentEventLike, config?: OpenClawConfig
           tokensIn: state.tokensIn || undefined,
           tokensOut: state.tokensOut || undefined,
           costUsd: state.costUsd || undefined,
+          delegationCalls: state.delegationCalls || undefined,
+          delegationMessages: state.delegationMessages || undefined,
+          artifactsPublished: state.artifactsPublished || undefined,
+          artifactsFetched: state.artifactsFetched || undefined,
         },
         payload: {
           requestId: event.runId,
@@ -797,6 +843,300 @@ export function observeObsDrop(
       connId: params.connId,
       dropped: params.dropped,
       reason: params.reason,
+    },
+  });
+}
+
+export function observeRoutingDecision(
+  params: {
+    traceId: string;
+    fromAgentId?: string;
+    selectedAgentId: string;
+    account: string;
+    channel: string;
+    peer?: string;
+    ruleId?: string;
+    specificity: number;
+  },
+  config?: OpenClawConfig,
+) {
+  const rt = ensureRuntime(config);
+  if (!rt.enabled) {
+    return;
+  }
+  const effectiveTraceId = params.traceId.trim() || createRootTrace().traceId;
+  const trace = createRootTrace({
+    agentId: params.selectedAgentId || params.fromAgentId || "main",
+  });
+  emitAudit(rt, {
+    traceId: effectiveTraceId,
+    spanId: trace.spanId,
+    agentId: params.selectedAgentId || params.fromAgentId || "main",
+    eventType: "routing.decision",
+    payload: {
+      fromAgentId: params.fromAgentId,
+      selectedAgentId: params.selectedAgentId,
+      account: params.account,
+      channel: params.channel,
+      peer: params.peer,
+      ruleId: params.ruleId,
+      specificity: params.specificity,
+    },
+  });
+}
+
+export function observeAgentMessage(
+  params: {
+    traceId: string;
+    fromAgentId: string;
+    toAgentId: string;
+    sessionKey: string;
+    artifactIds?: string[];
+    requestId?: string;
+    priority?: string;
+  },
+  config?: OpenClawConfig,
+) {
+  const rt = ensureRuntime(config);
+  if (!rt.enabled) {
+    return;
+  }
+  const state = resolveDelegationState({
+    rt,
+    requestId: params.requestId,
+    traceId: params.traceId,
+    agentId: params.fromAgentId,
+  });
+  if (state) {
+    state.delegationMessages += 1;
+  }
+  const effectiveTraceId = (state?.traceId ?? params.traceId.trim()) || createRootTrace().traceId;
+  const trace = createRootTrace({
+    agentId: params.fromAgentId,
+  });
+  emitAudit(rt, {
+    traceId: effectiveTraceId,
+    spanId: trace.spanId,
+    agentId: params.fromAgentId,
+    eventType: "agent.message",
+    payload: {
+      fromAgentId: params.fromAgentId,
+      toAgentId: params.toAgentId,
+      sessionKey: params.sessionKey,
+      artifactIds: params.artifactIds ?? [],
+      priority: params.priority,
+    },
+  });
+}
+
+export function observeAgentCallStart(
+  params: {
+    traceId: string;
+    fromAgentId: string;
+    toAgentId: string;
+    sessionKey: string;
+    limits: Record<string, unknown>;
+    taskHash: string;
+    requestId?: string;
+    artifactIds?: string[];
+  },
+  config?: OpenClawConfig,
+) {
+  const rt = ensureRuntime(config);
+  if (!rt.enabled) {
+    return;
+  }
+  const state = resolveDelegationState({
+    rt,
+    requestId: params.requestId,
+    traceId: params.traceId,
+    agentId: params.fromAgentId,
+  });
+  if (state) {
+    state.delegationCalls += 1;
+  }
+  const effectiveTraceId = (state?.traceId ?? params.traceId.trim()) || createRootTrace().traceId;
+  const trace = createRootTrace({
+    agentId: params.fromAgentId,
+  });
+  emitAudit(rt, {
+    traceId: effectiveTraceId,
+    spanId: trace.spanId,
+    agentId: params.fromAgentId,
+    eventType: "agent.call.start",
+    payload: {
+      fromAgentId: params.fromAgentId,
+      toAgentId: params.toAgentId,
+      sessionKey: params.sessionKey,
+      limits: params.limits,
+      taskHash: params.taskHash,
+      artifactIds: params.artifactIds ?? [],
+    },
+  });
+}
+
+export function observeAgentCallEnd(
+  params: {
+    traceId: string;
+    fromAgentId: string;
+    toAgentId: string;
+    sessionKey: string;
+    taskHash: string;
+    status: string;
+    latencyMs?: number;
+    artifactIds?: string[];
+    requestId?: string;
+  },
+  config?: OpenClawConfig,
+) {
+  const rt = ensureRuntime(config);
+  if (!rt.enabled) {
+    return;
+  }
+  const state = resolveDelegationState({
+    rt,
+    requestId: params.requestId,
+    traceId: params.traceId,
+    agentId: params.fromAgentId,
+  });
+  const effectiveTraceId = (state?.traceId ?? params.traceId.trim()) || createRootTrace().traceId;
+  const trace = createRootTrace({
+    agentId: params.fromAgentId,
+  });
+  emitAudit(rt, {
+    traceId: effectiveTraceId,
+    spanId: trace.spanId,
+    agentId: params.fromAgentId,
+    eventType: "agent.call.end",
+    metrics: {
+      latencyMs: params.latencyMs,
+    },
+    payload: {
+      fromAgentId: params.fromAgentId,
+      toAgentId: params.toAgentId,
+      sessionKey: params.sessionKey,
+      taskHash: params.taskHash,
+      status: params.status,
+      artifactIds: params.artifactIds ?? [],
+    },
+  });
+}
+
+export function observeAgentCallError(
+  params: {
+    traceId: string;
+    fromAgentId: string;
+    toAgentId: string;
+    sessionKey: string;
+    taskHash: string;
+    error: string;
+    requestId?: string;
+  },
+  config?: OpenClawConfig,
+) {
+  const rt = ensureRuntime(config);
+  if (!rt.enabled) {
+    return;
+  }
+  const state = resolveDelegationState({
+    rt,
+    requestId: params.requestId,
+    traceId: params.traceId,
+    agentId: params.fromAgentId,
+  });
+  const effectiveTraceId = (state?.traceId ?? params.traceId.trim()) || createRootTrace().traceId;
+  const trace = createRootTrace({
+    agentId: params.fromAgentId,
+  });
+  emitAudit(rt, {
+    traceId: effectiveTraceId,
+    spanId: trace.spanId,
+    agentId: params.fromAgentId,
+    eventType: "agent.call.error",
+    payload: {
+      fromAgentId: params.fromAgentId,
+      toAgentId: params.toAgentId,
+      sessionKey: params.sessionKey,
+      taskHash: params.taskHash,
+      error: params.error,
+    },
+  });
+}
+
+export function observeArtifactPublish(
+  params: {
+    traceId: string;
+    agentId: string;
+    artifactId: string;
+    kind: string;
+    sizeBytes: number;
+    requestId?: string;
+  },
+  config?: OpenClawConfig,
+) {
+  const rt = ensureRuntime(config);
+  if (!rt.enabled) {
+    return;
+  }
+  const state = resolveDelegationState({
+    rt,
+    requestId: params.requestId,
+    traceId: params.traceId,
+    agentId: params.agentId,
+  });
+  if (state) {
+    state.artifactsPublished += 1;
+  }
+  const effectiveTraceId = (state?.traceId ?? params.traceId.trim()) || createRootTrace().traceId;
+  const trace = createRootTrace({
+    agentId: params.agentId,
+  });
+  emitAudit(rt, {
+    traceId: effectiveTraceId,
+    spanId: trace.spanId,
+    agentId: params.agentId,
+    eventType: "artifact.publish",
+    payload: {
+      artifactId: params.artifactId,
+      kind: params.kind,
+      sizeBytes: params.sizeBytes,
+    },
+  });
+}
+
+export function observeArtifactFetch(
+  params: {
+    traceId: string;
+    agentId: string;
+    artifactId: string;
+    requestId?: string;
+  },
+  config?: OpenClawConfig,
+) {
+  const rt = ensureRuntime(config);
+  if (!rt.enabled) {
+    return;
+  }
+  const state = resolveDelegationState({
+    rt,
+    requestId: params.requestId,
+    traceId: params.traceId,
+    agentId: params.agentId,
+  });
+  if (state) {
+    state.artifactsFetched += 1;
+  }
+  const effectiveTraceId = (state?.traceId ?? params.traceId.trim()) || createRootTrace().traceId;
+  const trace = createRootTrace({
+    agentId: params.agentId,
+  });
+  emitAudit(rt, {
+    traceId: effectiveTraceId,
+    spanId: trace.spanId,
+    agentId: params.agentId,
+    eventType: "artifact.fetch",
+    payload: {
+      artifactId: params.artifactId,
     },
   });
 }
