@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openclaw.ai/schema/observability-stream.schema.json",
+  "title": "OpenClaw Observability Stream Config",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "description": "Enable live observability stream over Gateway WebSocket."
+    },
+    "replayWindowMs": {
+      "type": "integer",
+      "minimum": 1000,
+      "default": 300000
+    },
+    "serverMaxEventsPerSec": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 50
+    },
+    "serverMaxBufferedEvents": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 10000
+    },
+    "messageMaxBytes": {
+      "type": "integer",
+      "minimum": 1024,
+      "default": 65536
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "observability": {
+    "enabled": true,
+    "debug": false,
+    "redactionMode": "strict",
+    "audit": {
+      "enabled": true,
+      "dir": "./openclaw-data/audit",
+      "maxPayloadBytes": 262144,
+      "maxQueueSize": 10000
+    },
+    "spend": {
+      "enabled": true,
+      "dir": "./openclaw-data/spend",
+      "summaryPath": "./openclaw-data/spend/summary.json"
+    },
+    "health": {
+      "enabled": true,
+      "failureThreshold": 3,
+      "windowMs": 60000,
+      "openMs": 60000,
+      "emitIntervalMs": 30000
+    },
+    "stream": {
+      "enabled": true,
+      "replayWindowMs": 300000,
+      "serverMaxEventsPerSec": 50,
+      "serverMaxBufferedEvents": 10000,
+      "messageMaxBytes": 65536
+    }
+  }
+}

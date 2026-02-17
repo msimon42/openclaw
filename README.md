@@ -60,6 +60,14 @@ Phase 6 adds structured audit logging, request/model/tool trace correlation, spe
 - Tail logs: `openclaw obs tail --today --pretty`
 - Spend report: `openclaw spend report --today`
 
+### Phase 7 live observability UI
+
+Phase 7 extends the existing Control UI with live runtime observability over Gateway WebSocket streaming.
+
+- Setup guide: [Observability UI Streaming](https://docs.openclaw.ai/OBSERVABILITY_UI)
+- Example config: `config/examples/openclaw.phase7.control-ui-observability.json`
+- Stream schema: `config/observability-stream.schema.json`
+
 ## Install (recommended)
 
 Runtime: **Node ≥22**.
