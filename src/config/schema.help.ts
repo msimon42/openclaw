@@ -56,6 +56,27 @@ export const FIELD_HELP: Record<string, string> = {
     "Include full message payloads in trace output (default: true).",
   "diagnostics.cacheTrace.includePrompt": "Include prompt text in trace output (default: true).",
   "diagnostics.cacheTrace.includeSystem": "Include system prompt in trace output (default: true).",
+  "observability.enabled": "Enable structured audit, spend, and model/tool health telemetry.",
+  "observability.debug":
+    "Debug mode for observability payload capture (still redacts secrets and truncates long text).",
+  "observability.redactionMode":
+    'Redaction policy for payload fields ("strict" hashes by default, "debug" truncates with redaction).',
+  "observability.audit.dir":
+    "Directory for audit JSONL files (default: ./openclaw-data/audit). One file per UTC day.",
+  "observability.audit.maxPayloadBytes":
+    "Maximum serialized audit event size before payload truncation (default: 262144).",
+  "observability.audit.maxQueueSize":
+    "Maximum buffered audit events before oldest entries are dropped (default: 10000).",
+  "observability.spend.dir":
+    "Directory for spend JSONL files and summary.json (default: ./openclaw-data/spend).",
+  "observability.spend.summaryPath":
+    "Optional explicit path for aggregated spend summary JSON (default: <spend.dir>/summary.json).",
+  "observability.health.failureThreshold":
+    "Consecutive failures inside the health window required to open a model circuit (default: 3).",
+  "observability.health.windowMs":
+    "Sliding window in milliseconds used for health failure counting (default: 60000).",
+  "observability.health.openMs":
+    "Circuit-open duration in milliseconds before half-open probing (default: 60000).",
   "tools.exec.applyPatch.enabled":
     "Experimental. Enables apply_patch for OpenAI models when allowed by tool policy.",
   "tools.exec.applyPatch.workspaceOnly":
