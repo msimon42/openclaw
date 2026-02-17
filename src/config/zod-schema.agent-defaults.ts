@@ -80,6 +80,24 @@ export const AgentDefaultsSchema = z
       )
       .optional(),
     workspace: z.string().optional(),
+    multiAgent: z
+      .object({
+        workspaceRoot: z.string().optional(),
+        artifactAutoPublishChars: z.number().int().positive().optional(),
+        delegation: z
+          .object({
+            timeoutMs: z.number().int().positive().optional(),
+            maxDepth: z.number().int().positive().optional(),
+            maxCallsPerTrace: z.number().int().positive().optional(),
+            maxToolCalls: z.number().int().positive().optional(),
+            dedupeWindowMs: z.number().int().positive().optional(),
+            pairRateLimitPerMinute: z.number().int().positive().optional(),
+          })
+          .strict()
+          .optional(),
+      })
+      .strict()
+      .optional(),
     repoRoot: z.string().optional(),
     skipBootstrap: z.boolean().optional(),
     bootstrapMaxChars: z.number().int().positive().optional(),

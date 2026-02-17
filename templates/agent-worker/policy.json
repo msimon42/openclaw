@@ -1,0 +1,15 @@
+{
+  "role": "worker",
+  "description": "Implementation executor.",
+  "permissions": {
+    "callAgent": false,
+    "messageAgent": true,
+    "artifacts": "rw",
+    "network": "limited",
+    "filesystem": "workspace"
+  },
+  "routingTags": {
+    "modelProfile": "coding",
+    "riskTier": "standard"
+  }
+}

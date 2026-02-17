@@ -4,9 +4,11 @@ import { agentCliCommand } from "../../commands/agent-via-gateway.js";
 import {
   agentsAddCommand,
   agentsDeleteCommand,
+  agentsInitCommand,
   agentsListCommand,
   agentsSetIdentityCommand,
 } from "../../commands/agents.js";
+import { bindingsExplainCommand } from "../../commands/bindings.commands.explain.js";
 import { setVerbose } from "../../globals.js";
 import { defaultRuntime } from "../../runtime.js";
 import { formatDocsLink } from "../../terminal/links.js";
@@ -139,6 +141,31 @@ ${theme.muted("Docs:")} ${formatDocsLink("/cli/agent", "docs.openclaw.ai/cli/age
     });
 
   agents
+    .command("init <agentId>")
+    .description("Initialize a multi-agent workspace from a role template")
+    .requiredOption(
+      "--template <name>",
+      "Template name: admin | worker | social | research",
+    )
+    .option("--workspace <path>", "Explicit workspace path for this agent")
+    .option("--force", "Overwrite SOUL.md/policy.json if they already exist", false)
+    .option("--json", "Output JSON summary", false)
+    .action(async (agentId, opts) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        await agentsInitCommand(
+          {
+            agentId: String(agentId),
+            template: String(opts.template ?? ""),
+            workspace: opts.workspace as string | undefined,
+            force: Boolean(opts.force),
+            json: Boolean(opts.json),
+          },
+          defaultRuntime,
+        );
+      });
+    });
+
+  agents
     .command("set-identity")
     .description("Update an agent identity (name/theme/emoji/avatar)")
     .option("--agent <id>", "Agent id to update")
@@ -211,4 +238,31 @@ ${formatHelpExamples([
       await agentsListCommand({}, defaultRuntime);
     });
   });
+
+  const bindings = program
+    .command("bindings")
+    .description("Inspect deterministic agent routing bindings");
+
+  bindings
+    .command("explain")
+    .description("Explain which agent will be selected for an inbound route")
+    .requiredOption("--channel <id>", "Inbound channel id")
+    .option("--account <id>", "Channel account id (default: default)")
+    .option("--peer <id>", "Peer id for direct/group scoped bindings")
+    .option("--peer-kind <kind>", "Peer kind (default: direct)")
+    .option("--json", "Output JSON", false)
+    .action(async (opts) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        await bindingsExplainCommand(
+          {
+            channel: String(opts.channel ?? ""),
+            account: opts.account as string | undefined,
+            peer: opts.peer as string | undefined,
+            peerKind: opts.peerKind as string | undefined,
+            json: Boolean(opts.json),
+          },
+          defaultRuntime,
+        );
+      });
+    });
 }
