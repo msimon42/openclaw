@@ -34,6 +34,10 @@ export type AuditMetrics = {
   fallbackHops?: number;
   toolCalls?: number;
   blockedToolCalls?: number;
+  delegationCalls?: number;
+  delegationMessages?: number;
+  artifactsPublished?: number;
+  artifactsFetched?: number;
 };
 
 export type AuditEvent = {
@@ -136,6 +140,10 @@ export const AUDIT_EVENT_JSON_SCHEMA_V1 = {
         fallbackHops: { type: "number" },
         toolCalls: { type: "number" },
         blockedToolCalls: { type: "number" },
+        delegationCalls: { type: "number" },
+        delegationMessages: { type: "number" },
+        artifactsPublished: { type: "number" },
+        artifactsFetched: { type: "number" },
       },
     },
     payload: { type: "object" },
