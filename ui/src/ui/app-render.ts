@@ -1,6 +1,7 @@
 import { html, nothing } from "lit";
 import type { AppViewState } from "./app-view-state.ts";
 import { parseAgentSessionKey } from "../../../src/routing/session-key.js";
+import type { ObsEventRecord } from "../../../src/observability/stream-protocol.js";
 import { refreshChatAvatar } from "./app-chat.ts";
 import { renderUsageTab } from "./app-render-usage-tab.ts";
 import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.helpers.ts";
@@ -43,6 +44,7 @@ import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { deleteSession, loadSessions, patchSession } from "./controllers/sessions.ts";
+import { callWorkerFromInbox, loadInbox, promoteInboxMessage } from "./controllers/inbox.ts";
 import {
   installSkill,
   loadSkills,
@@ -65,11 +67,14 @@ import { renderLogs } from "./views/logs.ts";
 import { renderNodes } from "./views/nodes.ts";
 import { renderObservability } from "./views/observability.ts";
 import { renderOverview } from "./views/overview.ts";
+import { renderInbox } from "./views/inbox.ts";
+import { renderDelegationActivity } from "./views/delegation-activity.ts";
 import { renderSessions } from "./views/sessions.ts";
 import { renderSkills } from "./views/skills.ts";
 
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
+const DELEGATION_EVENT_RE = /^agent\.call(?:\.|$)|^agent\.message$|^artifact\./;
 
 function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   const list = state.agentsList?.agents ?? [];
@@ -87,6 +92,37 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   return identity?.avatarUrl;
 }
 
+type DelegationPayload = {
+  fromAgentId?: unknown;
+  toAgentId?: unknown;
+};
+
+function resolvePayloadAgentId(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function filterDelegationEventsForAgent(
+  events: ObsEventRecord[],
+  selectedAgentId: string | null,
+): ObsEventRecord[] {
+  return events.filter((entry) => {
+    if (!DELEGATION_EVENT_RE.test(entry.eventType)) {
+      return false;
+    }
+    if (!selectedAgentId) {
+      return true;
+    }
+    const payload = (entry.payload ?? {}) as DelegationPayload;
+    const fromAgentId = resolvePayloadAgentId(payload.fromAgentId);
+    const toAgentId = resolvePayloadAgentId(payload.toAgentId);
+    return (
+      entry.agentId === selectedAgentId ||
+      fromAgentId === selectedAgentId ||
+      toAgentId === selectedAgentId
+    );
+  });
+}
+
 export function renderApp(state: AppViewState) {
   const presenceCount = state.presenceEntries.length;
   const sessionsCount = state.sessionsResult?.count ?? null;
@@ -101,6 +137,7 @@ export function renderApp(state: AppViewState) {
     state.configForm ?? (state.configSnapshot?.config as Record<string, unknown> | null);
   const basePath = normalizeBasePath(state.basePath ?? "");
   const resolvedAgentId =
+    state.settings.selectedAgentId ??
     state.agentsSelectedId ??
     state.agentsList?.defaultId ??
     state.agentsList?.agents?.[0]?.id ??
@@ -142,6 +179,7 @@ export function renderApp(state: AppViewState) {
         .filter((value): value is string => typeof value === "string" && value.trim().length > 0),
     ),
   ).toSorted();
+  const delegationEvents = filterDelegationEventsForAgent(obsAllEvents, resolvedAgentId);
 
   return html`
     <div class="shell ${isChat ? "shell--chat" : ""} ${chatFocus ? "shell--chat-focus" : ""} ${state.settings.navCollapsed ? "shell--nav-collapsed" : ""} ${state.onboarding ? "shell--onboarding" : ""}">
@@ -175,6 +213,28 @@ export function renderApp(state: AppViewState) {
             <span>Health</span>
             <span class="mono">${state.connected ? "OK" : "Offline"}</span>
           </div>
+          <label class="agent-selector">
+            <span class="muted">Agent</span>
+            <select
+              .value=${resolvedAgentId ?? ""}
+              @change=${async (event: Event) => {
+                const next = (event.target as HTMLSelectElement).value;
+                state.agentsSelectedId = next || null;
+                state.applySettings({
+                  ...state.settings,
+                  selectedAgentId: next || state.settings.selectedAgentId,
+                });
+                if (state.tab === "inbox") {
+                  await loadInbox(state);
+                }
+              }}
+            >
+              ${(state.agentsList?.agents ?? []).map(
+                (agent) =>
+                  html`<option value=${agent.id}>${agent.displayName ?? agent.name ?? agent.id}</option>`,
+              )}
+            </select>
+          </label>
           ${renderThemeToggle(state)}
         </div>
       </header>
@@ -338,6 +398,41 @@ export function renderApp(state: AppViewState) {
                 onRefresh: () => loadSessions(state),
                 onPatch: (key, patch) => patchSession(state, key, patch),
                 onDelete: (key) => deleteSession(state, key),
+              })
+            : nothing
+        }
+
+        ${
+          state.tab === "inbox"
+            ? renderInbox({
+                loading: state.inboxLoading,
+                error: state.inboxError,
+                sessionKey: state.inboxSessionKey,
+                messages: state.inboxMessages,
+                workerAgentId: state.inboxWorkerAgentId,
+                actionStatus: state.inboxActionStatus,
+                onRefresh: () => loadInbox(state),
+                onPromote: (message) => {
+                  void promoteInboxMessage(state, message);
+                },
+                onCallWorker: (message) => {
+                  void callWorkerFromInbox(state, message);
+                },
+                onWorkerAgentChange: (next) => {
+                  state.inboxWorkerAgentId = next.trim();
+                },
+              })
+            : nothing
+        }
+
+        ${
+          state.tab === "delegation"
+            ? renderDelegationActivity({
+                events: delegationEvents,
+                traceFilter: state.delegationTraceFilter,
+                onTraceFilterChange: (next) => {
+                  state.delegationTraceFilter = next;
+                },
               })
             : nothing
         }

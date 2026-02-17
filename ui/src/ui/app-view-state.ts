@@ -151,6 +151,13 @@ export type AppViewState = {
   sessionsFilterLimit: string;
   sessionsIncludeGlobal: boolean;
   sessionsIncludeUnknown: boolean;
+  inboxLoading: boolean;
+  inboxError: string | null;
+  inboxSessionKey: string | null;
+  inboxMessages: unknown[];
+  inboxWorkerAgentId: string;
+  inboxActionStatus: string | null;
+  inboxLastCallResult: unknown;
   usageLoading: boolean;
   usageResult: SessionsUsageResult | null;
   usageCostSummary: CostUsageSummary | null;
@@ -225,6 +232,7 @@ export type AppViewState = {
   observabilityFilter: AuditFilterState;
   observabilitySelectedEventId: string | null;
   observabilitySpendWindow: SpendWindow;
+  delegationTraceFilter: string;
   observabilityRenderVersion: number;
   observabilityStream: ObservabilityStreamService;
   client: GatewayBrowserClient | null;

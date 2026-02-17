@@ -40,6 +40,22 @@ function formatNumber(value: number): string {
   return Number.isFinite(value) ? value.toLocaleString() : "0";
 }
 
+function extractArtifactIds(event: ObsEventRecord): string[] {
+  const payload = (event.payload ?? {}) as { artifactId?: unknown; artifactIds?: unknown };
+  const ids = new Set<string>();
+  if (typeof payload.artifactId === "string" && payload.artifactId.trim()) {
+    ids.add(payload.artifactId.trim());
+  }
+  if (Array.isArray(payload.artifactIds)) {
+    for (const entry of payload.artifactIds) {
+      if (typeof entry === "string" && entry.trim()) {
+        ids.add(entry.trim());
+      }
+    }
+  }
+  return [...ids];
+}
+
 function renderAudit(props: ObservabilityViewProps) {
   const selected = props.events.find((entry) => entry.eventId === props.selectedEventId) ?? null;
   return html`
@@ -167,12 +183,37 @@ function renderAudit(props: ObservabilityViewProps) {
                     <div class="muted">No trace selected.</div>
                   `
                 : props.traceEvents.map(
-                    (event) => html`<div class="list-item">
-                      <div class="list-main">
-                        <div class="list-title">${event.eventType}</div>
-                        <div class="list-sub">${formatTime(event.timestamp)} · span ${event.spanId ?? "-"}</div>
-                      </div>
-                    </div>`,
+                    (event) => {
+                      const artifactIds = extractArtifactIds(event);
+                      return html`<div class="list-item">
+                        <div class="list-main">
+                          <div class="list-title">${event.eventType}</div>
+                          <div class="list-sub">${formatTime(event.timestamp)} · span ${event.spanId ?? "-"}</div>
+                          ${
+                            artifactIds.length > 0
+                              ? html`<div class="list-sub">
+                                  artifacts:
+                                  ${artifactIds.map(
+                                    (artifactId) => html`
+                                      <button
+                                        class="btn chip"
+                                        @click=${() =>
+                                          props.onFilterChange({
+                                            ...props.filter,
+                                            query: artifactId,
+                                          })}
+                                        title="Filter audit events by this artifact id"
+                                      >
+                                        ${artifactId}
+                                      </button>
+                                    `,
+                                  )}
+                                </div>`
+                              : null
+                          }
+                        </div>
+                      </div>`;
+                    },
                   )
             }
           </div>

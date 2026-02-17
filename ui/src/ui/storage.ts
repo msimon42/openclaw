@@ -7,6 +7,7 @@ export type UiSettings = {
   token: string;
   sessionKey: string;
   lastActiveSessionKey: string;
+  selectedAgentId: string;
   theme: ThemeMode;
   chatFocusMode: boolean;
   chatShowThinking: boolean;
@@ -26,6 +27,7 @@ export function loadSettings(): UiSettings {
     token: "",
     sessionKey: "main",
     lastActiveSessionKey: "main",
+    selectedAgentId: "main",
     theme: "system",
     chatFocusMode: false,
     chatShowThinking: true,
@@ -55,6 +57,10 @@ export function loadSettings(): UiSettings {
           ? parsed.lastActiveSessionKey.trim()
           : (typeof parsed.sessionKey === "string" && parsed.sessionKey.trim()) ||
             defaults.lastActiveSessionKey,
+      selectedAgentId:
+        typeof parsed.selectedAgentId === "string" && parsed.selectedAgentId.trim()
+          ? parsed.selectedAgentId.trim()
+          : defaults.selectedAgentId,
       theme:
         parsed.theme === "light" || parsed.theme === "dark" || parsed.theme === "system"
           ? parsed.theme

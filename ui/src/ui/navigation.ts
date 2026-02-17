@@ -4,7 +4,17 @@ export const TAB_GROUPS = [
   { label: "Chat", tabs: ["chat"] },
   {
     label: "Control",
-    tabs: ["overview", "channels", "instances", "sessions", "usage", "cron", "observability"],
+    tabs: [
+      "overview",
+      "channels",
+      "instances",
+      "sessions",
+      "usage",
+      "cron",
+      "observability",
+      "inbox",
+      "delegation",
+    ],
   },
   { label: "Agent", tabs: ["agents", "skills", "nodes"] },
   { label: "Settings", tabs: ["config", "debug", "logs"] },
@@ -19,6 +29,8 @@ export type Tab =
   | "usage"
   | "cron"
   | "observability"
+  | "inbox"
+  | "delegation"
   | "skills"
   | "nodes"
   | "chat"
@@ -35,6 +47,8 @@ const TAB_PATHS: Record<Tab, string> = {
   usage: "/usage",
   cron: "/cron",
   observability: "/observability",
+  inbox: "/inbox",
+  delegation: "/delegation",
   skills: "/skills",
   nodes: "/nodes",
   chat: "/chat",
@@ -144,6 +158,10 @@ export function iconForTab(tab: Tab): IconName {
       return "loader";
     case "observability":
       return "barChart";
+    case "inbox":
+      return "messageSquare";
+    case "delegation":
+      return "barChart";
     case "skills":
       return "zap";
     case "nodes":
@@ -177,6 +195,10 @@ export function titleForTab(tab: Tab) {
       return "Cron Jobs";
     case "observability":
       return "Observability";
+    case "inbox":
+      return "Inbox";
+    case "delegation":
+      return "Delegation";
     case "skills":
       return "Skills";
     case "nodes":
@@ -212,6 +234,10 @@ export function subtitleForTab(tab: Tab) {
       return "Schedule wakeups and recurring agent runs.";
     case "observability":
       return "Live audit events, spend rollups, and model health.";
+    case "inbox":
+      return "Review injected agent inbox handoffs and promote work items.";
+    case "delegation":
+      return "Trace cross-agent call/message activity by trace id.";
     case "skills":
       return "Manage skill availability and API key injection.";
     case "nodes":

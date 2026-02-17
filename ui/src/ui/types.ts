@@ -326,6 +326,9 @@ export type GatewaySessionsDefaults = {
 export type GatewayAgentRow = {
   id: string;
   name?: string;
+  displayName?: string;
+  lastActive?: number;
+  status?: "active" | "idle" | "offline";
   identity?: {
     name?: string;
     theme?: string;

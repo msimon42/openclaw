@@ -204,7 +204,7 @@ export class OpenClawApp extends LitElement {
   @state() agentsLoading = false;
   @state() agentsList: AgentsListResult | null = null;
   @state() agentsError: string | null = null;
-  @state() agentsSelectedId: string | null = null;
+  @state() agentsSelectedId: string | null = this.settings.selectedAgentId ?? null;
   @state() agentsPanel: "overview" | "files" | "tools" | "skills" | "channels" | "cron" =
     "overview";
   @state() agentFilesLoading = false;
@@ -229,6 +229,13 @@ export class OpenClawApp extends LitElement {
   @state() sessionsFilterLimit = "120";
   @state() sessionsIncludeGlobal = true;
   @state() sessionsIncludeUnknown = false;
+  @state() inboxLoading = false;
+  @state() inboxError: string | null = null;
+  @state() inboxSessionKey: string | null = null;
+  @state() inboxMessages: unknown[] = [];
+  @state() inboxWorkerAgentId = "worker";
+  @state() inboxActionStatus: string | null = null;
+  @state() inboxLastCallResult: unknown = null;
 
   @state() usageLoading = false;
   @state() usageResult: import("./types.js").SessionsUsageResult | null = null;
@@ -329,6 +336,7 @@ export class OpenClawApp extends LitElement {
   @state() observabilityFilter: AuditFilterState = {};
   @state() observabilitySelectedEventId: string | null = null;
   @state() observabilitySpendWindow: SpendWindow = "15m";
+  @state() delegationTraceFilter = "";
   @state() observabilityRenderVersion = 0;
 
   client: GatewayBrowserClient | null = null;
