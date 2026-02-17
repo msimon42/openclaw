@@ -63,6 +63,7 @@ import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation.t
 import { renderInstances } from "./views/instances.ts";
 import { renderLogs } from "./views/logs.ts";
 import { renderNodes } from "./views/nodes.ts";
+import { renderObservability } from "./views/observability.ts";
 import { renderOverview } from "./views/overview.ts";
 import { renderSessions } from "./views/sessions.ts";
 import { renderSkills } from "./views/skills.ts";
@@ -104,6 +105,43 @@ export function renderApp(state: AppViewState) {
     state.agentsList?.defaultId ??
     state.agentsList?.agents?.[0]?.id ??
     null;
+  const obsRenderVersion = state.observabilityRenderVersion;
+  void obsRenderVersion;
+  const obsStore = state.observabilityStream.getStore();
+  const obsStatus = state.observabilityStream.getStatus();
+  const obsEvents = obsStore.getFilteredEvents(state.observabilityFilter);
+  const obsAllEvents = obsStore.getAllEvents();
+  const obsSelectedEvent = obsEvents.find(
+    (entry) => entry.eventId === state.observabilitySelectedEventId,
+  );
+  const obsTraceEvents = obsSelectedEvent ? obsStore.getTrace(obsSelectedEvent.traceId) : [];
+  const obsDerivedSpend = obsStore.deriveSpend(state.observabilitySpendWindow);
+  const obsFallbacks = obsStore.deriveFallbackCounts(state.observabilitySpendWindow);
+  const obsHealthSummary = obsStore.getHealth();
+  const availableAgents = Array.from(
+    new Set(obsAllEvents.map((entry) => entry.agentId)),
+  ).toSorted();
+  const availableEventTypes = Array.from(
+    new Set(obsAllEvents.map((entry) => entry.eventType)),
+  ).toSorted();
+  const availableModelRefs = Array.from(
+    new Set(
+      obsAllEvents
+        .flatMap((entry) => [
+          entry.model?.modelRef,
+          entry.model?.fromModelRef,
+          entry.model?.toModelRef,
+        ])
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0),
+    ),
+  ).toSorted();
+  const availableRiskTiers = Array.from(
+    new Set(
+      obsAllEvents
+        .map((entry) => entry.riskTier)
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0),
+    ),
+  ).toSorted();
 
   return html`
     <div class="shell ${isChat ? "shell--chat" : ""} ${chatFocus ? "shell--chat-focus" : ""} ${state.settings.navCollapsed ? "shell--nav-collapsed" : ""} ${state.onboarding ? "shell--onboarding" : ""}">
@@ -305,6 +343,35 @@ export function renderApp(state: AppViewState) {
         }
 
         ${renderUsageTab(state)}
+
+        ${
+          state.tab === "observability"
+            ? renderObservability({
+                connected: state.connected,
+                status: obsStatus,
+                section: state.observabilitySection,
+                onSectionChange: (next) => (state.observabilitySection = next),
+                filter: state.observabilityFilter,
+                onFilterChange: (next) => {
+                  state.observabilityFilter = next;
+                  state.observabilityStream.setFilters(next);
+                },
+                availableAgents,
+                availableEventTypes,
+                availableModelRefs,
+                availableRiskTiers,
+                events: obsEvents,
+                selectedEventId: state.observabilitySelectedEventId,
+                onSelectEvent: (eventId) => (state.observabilitySelectedEventId = eventId),
+                traceEvents: obsTraceEvents,
+                spendWindow: state.observabilitySpendWindow,
+                onSpendWindowChange: (next) => (state.observabilitySpendWindow = next),
+                derivedSpend: obsDerivedSpend,
+                fallbackCounts: obsFallbacks,
+                healthSummary: obsHealthSummary,
+              })
+            : nothing
+        }
 
         ${
           state.tab === "cron"
