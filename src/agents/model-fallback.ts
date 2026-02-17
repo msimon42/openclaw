@@ -1,5 +1,11 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { FailoverReason } from "./pi-embedded-helpers.js";
+import {
+  observeModelCallEnd,
+  observeModelCallError,
+  observeModelCallFallback,
+  observeModelCallStart,
+} from "../infra/observability.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import {
   ensureAuthProfileStore,
@@ -559,6 +565,7 @@ export async function runWithModelFallback<T>(params: {
   provider: string;
   model: string;
   agentDir?: string;
+  agentId?: string;
   requestId?: string;
   routerInput?: ModelRouterInput;
   preserveNonDefaultSelection?: boolean;
@@ -592,11 +599,27 @@ export async function runWithModelFallback<T>(params: {
     ? ensureAuthProfileStore(params.agentDir, { allowKeychainPrompt: false })
     : null;
   const attempts: FallbackAttempt[] = [];
+  const observabilityRequestId =
+    params.requestId ??
+    `model-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   let lastError: unknown;
   let lastFailReason: string | undefined;
 
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
+    const requestId = observabilityRequestId;
+    const attemptStart = Date.now();
+    observeModelCallStart(
+      {
+        requestId,
+        provider: candidate.provider,
+        model: candidate.model,
+        agentId: params.agentId,
+        attempt: i + 1,
+        total: candidates.length,
+      },
+      params.cfg,
+    );
     const now = Date.now();
     if (isCircuitOpen(candidate.provider, candidate.model, now)) {
       attempts.push({
@@ -606,6 +629,32 @@ export async function runWithModelFallback<T>(params: {
         reason: "rate_limit",
       });
       lastFailReason = "circuit_open";
+      observeModelCallError(
+        {
+          requestId,
+          provider: candidate.provider,
+          model: candidate.model,
+          reason: "circuit_open",
+          error: "circuit breaker open",
+          agentId: params.agentId,
+        },
+        params.cfg,
+      );
+      const next = candidates[i + 1];
+      if (next) {
+        observeModelCallFallback(
+          {
+            requestId,
+            fromProvider: candidate.provider,
+            fromModel: candidate.model,
+            toProvider: next.provider,
+            toModel: next.model,
+            reason: "circuit_open",
+            agentId: params.agentId,
+          },
+          params.cfg,
+        );
+      }
       continue;
     }
     if (authStore) {
@@ -625,12 +674,50 @@ export async function runWithModelFallback<T>(params: {
           reason: "rate_limit",
         });
         lastFailReason = "provider_cooldown";
+        observeModelCallError(
+          {
+            requestId,
+            provider: candidate.provider,
+            model: candidate.model,
+            reason: "provider_cooldown",
+            error: "provider cooldown",
+            agentId: params.agentId,
+          },
+          params.cfg,
+        );
+        const next = candidates[i + 1];
+        if (next) {
+          observeModelCallFallback(
+            {
+              requestId,
+              fromProvider: candidate.provider,
+              fromModel: candidate.model,
+              toProvider: next.provider,
+              toModel: next.model,
+              reason: "provider_cooldown",
+              agentId: params.agentId,
+            },
+            params.cfg,
+          );
+        }
         continue;
       }
     }
     try {
       const result = await params.run(candidate.provider, candidate.model);
       const usage = extractTokenUsage(result);
+      observeModelCallEnd(
+        {
+          requestId,
+          provider: candidate.provider,
+          model: candidate.model,
+          tokensIn: usage.tokensIn,
+          tokensOut: usage.tokensOut,
+          latencyMs: Date.now() - attemptStart,
+          agentId: params.agentId,
+        },
+        params.cfg,
+      );
       emitModelRoutingLog({
         requestId: params.requestId,
         chosenModel: {
@@ -661,6 +748,17 @@ export async function runWithModelFallback<T>(params: {
       const errMessage = err instanceof Error ? err.message : String(err);
       const terminalReason = classifyTerminalErrorReason(err);
       if (terminalReason) {
+        observeModelCallError(
+          {
+            requestId,
+            provider: candidate.provider,
+            model: candidate.model,
+            reason: terminalReason,
+            error: err,
+            agentId: params.agentId,
+          },
+          params.cfg,
+        );
         const terminal = formatTerminalError(terminalReason, err);
         emitModelRoutingLog({
           requestId: params.requestId,
@@ -685,8 +783,34 @@ export async function runWithModelFallback<T>(params: {
         });
         lastError = err;
         lastFailReason = "context_overflow";
+        observeModelCallError(
+          {
+            requestId,
+            provider: candidate.provider,
+            model: candidate.model,
+            reason: "context_overflow",
+            error: errMessage,
+            agentId: params.agentId,
+          },
+          params.cfg,
+        );
         if (nextIndex === null) {
           break;
+        }
+        const next = candidates[nextIndex];
+        if (next) {
+          observeModelCallFallback(
+            {
+              requestId,
+              fromProvider: candidate.provider,
+              fromModel: candidate.model,
+              toProvider: next.provider,
+              toModel: next.model,
+              reason: "context_overflow",
+              agentId: params.agentId,
+            },
+            params.cfg,
+          );
         }
         // Skip directly to the next larger-context candidate.
         i = nextIndex - 1;
@@ -698,6 +822,17 @@ export async function runWithModelFallback<T>(params: {
         model: candidate.model,
       });
       if (!normalized || !isFailoverError(normalized)) {
+        observeModelCallError(
+          {
+            requestId,
+            provider: candidate.provider,
+            model: candidate.model,
+            reason: "non_retryable_error",
+            error: err,
+            agentId: params.agentId,
+          },
+          params.cfg,
+        );
         emitModelRoutingLog({
           requestId: params.requestId,
           attempts,
@@ -718,6 +853,34 @@ export async function runWithModelFallback<T>(params: {
         status: described.status,
         code: described.code,
       });
+      observeModelCallError(
+        {
+          requestId,
+          provider: candidate.provider,
+          model: candidate.model,
+          reason: described.reason ?? "retryable_error",
+          statusCode: described.status,
+          errorCode: described.code,
+          error: described.message,
+          agentId: params.agentId,
+        },
+        params.cfg,
+      );
+      const next = candidates[i + 1];
+      if (next) {
+        observeModelCallFallback(
+          {
+            requestId,
+            fromProvider: candidate.provider,
+            fromModel: candidate.model,
+            toProvider: next.provider,
+            toModel: next.model,
+            reason: described.reason,
+            agentId: params.agentId,
+          },
+          params.cfg,
+        );
+      }
       noteCircuitFailure({
         provider: candidate.provider,
         model: candidate.model,

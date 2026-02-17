@@ -1,4 +1,6 @@
 import type { VerboseLevel } from "../auto-reply/thinking.js";
+import type { OpenClawConfig } from "../config/config.js";
+import { observeAgentEvent } from "./observability.js";
 
 export type AgentEventStream = "lifecycle" | "tool" | "assistant" | "error" | (string & {});
 
@@ -15,6 +17,7 @@ export type AgentRunContext = {
   sessionKey?: string;
   verboseLevel?: VerboseLevel;
   isHeartbeat?: boolean;
+  config?: OpenClawConfig;
 };
 
 // Keep per-run counters so streams stay strictly monotonic per runId.
@@ -39,6 +42,9 @@ export function registerAgentRunContext(runId: string, context: AgentRunContext)
   }
   if (context.isHeartbeat !== undefined && existing.isHeartbeat !== context.isHeartbeat) {
     existing.isHeartbeat = context.isHeartbeat;
+  }
+  if (context.config && existing.config !== context.config) {
+    existing.config = context.config;
   }
 }
 
@@ -68,6 +74,7 @@ export function emitAgentEvent(event: Omit<AgentEventPayload, "seq" | "ts">) {
     seq: nextSeq,
     ts: Date.now(),
   };
+  observeAgentEvent(enriched, context?.config);
   for (const listener of listeners) {
     try {
       listener(enriched);

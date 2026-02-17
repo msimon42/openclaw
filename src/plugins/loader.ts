@@ -10,6 +10,7 @@ import type {
   PluginDiagnostic,
   PluginLogger,
 } from "./types.js";
+import { observePluginLifecycle } from "../infra/observability.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveUserPath } from "../utils.js";
 import { clearPluginCommands } from "./commands.js";
@@ -275,6 +276,14 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       });
       record.status = "disabled";
       record.error = `overridden by ${existingOrigin} plugin`;
+      observePluginLifecycle(
+        {
+          eventType: "plugin.disabled",
+          pluginId: record.id,
+          reason: record.error,
+        },
+        cfg,
+      );
       registry.plugins.push(record);
       continue;
     }
@@ -299,6 +308,14 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
     if (!enableState.enabled) {
       record.status = "disabled";
       record.error = enableState.reason;
+      observePluginLifecycle(
+        {
+          eventType: "plugin.disabled",
+          pluginId: record.id,
+          reason: record.error,
+        },
+        cfg,
+      );
       registry.plugins.push(record);
       seenIds.set(pluginId, candidate.origin);
       continue;
@@ -307,6 +324,14 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
     if (!manifestRecord.configSchema) {
       record.status = "error";
       record.error = "missing config schema";
+      observePluginLifecycle(
+        {
+          eventType: "plugin.error",
+          pluginId: record.id,
+          reason: record.error,
+        },
+        cfg,
+      );
       registry.plugins.push(record);
       seenIds.set(pluginId, candidate.origin);
       registry.diagnostics.push({
@@ -325,6 +350,14 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       logger.error(`[plugins] ${record.id} failed to load from ${record.source}: ${String(err)}`);
       record.status = "error";
       record.error = String(err);
+      observePluginLifecycle(
+        {
+          eventType: "plugin.error",
+          pluginId: record.id,
+          reason: record.error,
+        },
+        cfg,
+      );
       registry.plugins.push(record);
       seenIds.set(pluginId, candidate.origin);
       registry.diagnostics.push({
@@ -379,6 +412,14 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       record.enabled = false;
       record.status = "disabled";
       record.error = memoryDecision.reason;
+      observePluginLifecycle(
+        {
+          eventType: "plugin.disabled",
+          pluginId: record.id,
+          reason: record.error,
+        },
+        cfg,
+      );
       registry.plugins.push(record);
       seenIds.set(pluginId, candidate.origin);
       continue;
@@ -398,6 +439,14 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       logger.error(`[plugins] ${record.id} invalid config: ${validatedConfig.errors?.join(", ")}`);
       record.status = "error";
       record.error = `invalid config: ${validatedConfig.errors?.join(", ")}`;
+      observePluginLifecycle(
+        {
+          eventType: "plugin.error",
+          pluginId: record.id,
+          reason: record.error,
+        },
+        cfg,
+      );
       registry.plugins.push(record);
       seenIds.set(pluginId, candidate.origin);
       registry.diagnostics.push({
@@ -419,6 +468,14 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       logger.error(`[plugins] ${record.id} missing register/activate export`);
       record.status = "error";
       record.error = "plugin export missing register/activate";
+      observePluginLifecycle(
+        {
+          eventType: "plugin.error",
+          pluginId: record.id,
+          reason: record.error,
+        },
+        cfg,
+      );
       registry.plugins.push(record);
       seenIds.set(pluginId, candidate.origin);
       registry.diagnostics.push({
@@ -445,6 +502,16 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
           message: "plugin register returned a promise; async registration is ignored",
         });
       }
+      observePluginLifecycle(
+        {
+          eventType: "plugin.load",
+          pluginId: record.id,
+          payload: {
+            source: record.source,
+          },
+        },
+        cfg,
+      );
       registry.plugins.push(record);
       seenIds.set(pluginId, candidate.origin);
     } catch (err) {
@@ -453,6 +520,14 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       );
       record.status = "error";
       record.error = String(err);
+      observePluginLifecycle(
+        {
+          eventType: "plugin.error",
+          pluginId: record.id,
+          reason: record.error,
+        },
+        cfg,
+      );
       registry.plugins.push(record);
       seenIds.set(pluginId, candidate.origin);
       registry.diagnostics.push({

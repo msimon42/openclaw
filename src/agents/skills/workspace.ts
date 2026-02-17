@@ -14,6 +14,7 @@ import type {
   SkillEntry,
   SkillSnapshot,
 } from "./types.js";
+import { observeSkillLifecycle } from "../../infra/observability.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { CONFIG_DIR, resolveUserPath } from "../../utils.js";
 import { resolveSandboxPath } from "../sandbox-paths.js";
@@ -223,6 +224,19 @@ function loadSkillEntries(
         skillsLogger.warn(
           `Skipping skill "${skill.name}" (${skill.source}): ${manifestResult.error} (${manifestResult.manifestPath})`,
         );
+        observeSkillLifecycle(
+          {
+            eventType: "skill.disabled",
+            skillId: skill.name,
+            agentId: opts?.agentId,
+            reason: manifestResult.error,
+            payload: {
+              source: skill.source,
+              manifestPath: manifestResult.manifestPath,
+            },
+          },
+          opts?.config,
+        );
         continue;
       }
     }
@@ -244,6 +258,19 @@ function loadSkillEntries(
         skillsLogger.warn(
           `Skipping skill "${skill.name}" due to blocked capabilities: ${capabilityCheck.blocked.join(", ")}`,
         );
+        observeSkillLifecycle(
+          {
+            eventType: "skill.disabled",
+            skillId: skill.name,
+            agentId: opts?.agentId,
+            reason: "blocked capabilities",
+            payload: {
+              blockedCapabilities: capabilityCheck.blocked,
+              source: skill.source,
+            },
+          },
+          opts?.config,
+        );
         continue;
       }
     }
@@ -251,6 +278,17 @@ function loadSkillEntries(
     entry.security = {
       effectivePolicy,
     };
+    observeSkillLifecycle(
+      {
+        eventType: "skill.load",
+        skillId: skill.name,
+        agentId: opts?.agentId,
+        payload: {
+          source: skill.source,
+        },
+      },
+      opts?.config,
+    );
     skillEntries.push(entry);
   }
   return skillEntries;

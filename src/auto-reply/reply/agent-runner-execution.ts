@@ -92,6 +92,7 @@ export async function runAgentTurnWithFallback(params: {
       sessionKey: params.sessionKey,
       verboseLevel: params.resolvedVerboseLevel,
       isHeartbeat: params.isHeartbeat,
+      config: params.followupRun.run.config,
     });
   }
   let runResult: Awaited<ReturnType<typeof runEmbeddedPiAgent>>;
@@ -156,6 +157,7 @@ export async function runAgentTurnWithFallback(params: {
         provider: params.followupRun.run.provider,
         model: params.followupRun.run.model,
         agentDir: params.followupRun.run.agentDir,
+        agentId: params.followupRun.run.agentId,
         requestId: runId,
         routerInput: {
           message: params.commandBody,

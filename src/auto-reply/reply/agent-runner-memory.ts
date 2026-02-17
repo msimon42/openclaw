@@ -87,6 +87,7 @@ export async function runMemoryFlushIfNeeded(params: {
     registerAgentRunContext(flushRunId, {
       sessionKey: params.sessionKey,
       verboseLevel: params.resolvedVerboseLevel,
+      config: params.followupRun.run.config,
     });
   }
   let memoryCompactionCompleted = false;
@@ -102,6 +103,7 @@ export async function runMemoryFlushIfNeeded(params: {
       provider: params.followupRun.run.provider,
       model: params.followupRun.run.model,
       agentDir: params.followupRun.run.agentDir,
+      agentId: params.followupRun.run.agentId,
       requestId: flushRunId,
       fallbacksOverride: resolveAgentModelFallbacksOverride(
         params.followupRun.run.config,

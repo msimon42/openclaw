@@ -117,6 +117,7 @@ export function createFollowupRunner(params: {
         registerAgentRunContext(runId, {
           sessionKey: queued.run.sessionKey,
           verboseLevel: queued.run.verboseLevel,
+          config: queued.run.config,
         });
       }
       let autoCompactionCompleted = false;
@@ -129,6 +130,7 @@ export function createFollowupRunner(params: {
           provider: queued.run.provider,
           model: queued.run.model,
           agentDir: queued.run.agentDir,
+          agentId: queued.run.agentId,
           requestId: runId,
           routerInput: {
             message: queued.prompt,

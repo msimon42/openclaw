@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { AnyAgentTool } from "./tools/common.js";
+import { observeToolCallBlocked } from "../infra/observability.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { isPlainObject } from "../utils.js";
@@ -8,6 +9,7 @@ import { loadWorkspaceSkillEntries } from "./skills/workspace.js";
 import { normalizeToolName } from "./tool-policy.js";
 
 type HookContext = {
+  runId?: string;
   agentId?: string;
   sessionKey?: string;
   config?: OpenClawConfig;
@@ -20,6 +22,25 @@ const log = createSubsystemLogger("agents/tools");
 const BEFORE_TOOL_CALL_WRAPPED = Symbol("beforeToolCallWrapped");
 const adjustedParamsByToolCallId = new Map<string, unknown>();
 const MAX_TRACKED_ADJUSTED_PARAMS = 1024;
+
+function emitBlockedEvent(args: {
+  toolName: string;
+  toolCallId?: string;
+  reason: string;
+  ctx?: HookContext;
+}) {
+  observeToolCallBlocked(
+    {
+      runId: args.ctx?.runId,
+      toolName: args.toolName,
+      toolCallId: args.toolCallId,
+      reason: args.reason,
+      agentId: args.ctx?.agentId,
+      sessionKey: args.ctx?.sessionKey,
+    },
+    args.ctx?.config,
+  );
+}
 
 function resolveSkillName(params: unknown): string | undefined {
   if (!isPlainObject(params)) {
@@ -103,6 +124,12 @@ export async function runBeforeToolCallHook(args: {
     ctx: args.ctx,
   });
   if (securityDecision?.blocked) {
+    emitBlockedEvent({
+      toolName,
+      toolCallId: args.toolCallId,
+      reason: securityDecision.reason,
+      ctx: args.ctx,
+    });
     return securityDecision;
   }
 
@@ -126,6 +153,12 @@ export async function runBeforeToolCallHook(args: {
     );
 
     if (hookResult?.block) {
+      emitBlockedEvent({
+        toolName,
+        toolCallId: args.toolCallId,
+        reason: hookResult.blockReason || "Tool call blocked by plugin hook",
+        ctx: args.ctx,
+      });
       return {
         blocked: true,
         reason: hookResult.blockReason || "Tool call blocked by plugin hook",

@@ -190,7 +190,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
 export function toClientToolDefinitions(
   tools: ClientToolDefinition[],
   onClientToolCall?: (toolName: string, params: Record<string, unknown>) => void,
-  hookContext?: { agentId?: string; sessionKey?: string },
+  hookContext?: { runId?: string; agentId?: string; sessionKey?: string },
 ): ToolDefinition[] {
   return tools.map((tool) => {
     const func = tool.function;

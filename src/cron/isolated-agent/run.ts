@@ -409,6 +409,7 @@ export async function runCronIsolatedAgentTurn(params: {
     registerAgentRunContext(cronSession.sessionEntry.sessionId, {
       sessionKey: agentSessionKey,
       verboseLevel: resolvedVerboseLevel,
+      config: cfgWithAgentDefaults,
     });
     const messageChannel = resolvedDelivery.channel;
     const fallbackResult = await runWithModelFallback({
@@ -416,6 +417,7 @@ export async function runCronIsolatedAgentTurn(params: {
       provider,
       model,
       agentDir,
+      agentId,
       requestId: cronSession.sessionEntry.sessionId,
       routerInput: {
         message: commandBody,

@@ -133,6 +133,7 @@ export const __testing = {
 } as const;
 
 export function createOpenClawCodingTools(options?: {
+  runId?: string;
   exec?: ExecToolDefaults & ProcessToolDefaults;
   messageProvider?: string;
   agentAccountId?: string;
@@ -449,6 +450,7 @@ export function createOpenClawCodingTools(options?: {
   const normalized = subagentFiltered.map(normalizeToolParameters);
   const withHooks = normalized.map((tool) =>
     wrapToolWithBeforeToolCallHook(tool, {
+      runId: options?.runId,
       agentId,
       sessionKey: options?.sessionKey,
       config: options?.config,

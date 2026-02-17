@@ -309,6 +309,7 @@ export async function agentCommand(
       registerAgentRunContext(runId, {
         sessionKey,
         verboseLevel: resolvedVerboseLevel,
+        config: cfg,
       });
     }
 
@@ -539,6 +540,7 @@ export async function agentCommand(
         provider,
         model,
         agentDir,
+        agentId: sessionAgentId,
         requestId: runId,
         routerInput: {
           message: body,
