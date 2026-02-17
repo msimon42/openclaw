@@ -118,6 +118,12 @@ import {
   NodeRenameParamsSchema,
 } from "./nodes.js";
 import {
+  ObsFilterSchema,
+  ObsPingParamsSchema,
+  ObsSubscribeParamsSchema,
+  ObsUnsubscribeParamsSchema,
+} from "./observability.js";
+import {
   SessionsCompactParamsSchema,
   SessionsDeleteParamsSchema,
   SessionsListParamsSchema,
@@ -235,6 +241,10 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   CronRunLogEntry: CronRunLogEntrySchema,
   LogsTailParams: LogsTailParamsSchema,
   LogsTailResult: LogsTailResultSchema,
+  ObsFilter: ObsFilterSchema,
+  ObsSubscribeParams: ObsSubscribeParamsSchema,
+  ObsUnsubscribeParams: ObsUnsubscribeParamsSchema,
+  ObsPingParams: ObsPingParamsSchema,
   ExecApprovalsGetParams: ExecApprovalsGetParamsSchema,
   ExecApprovalsSetParams: ExecApprovalsSetParamsSchema,
   ExecApprovalsNodeGetParams: ExecApprovalsNodeGetParamsSchema,

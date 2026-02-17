@@ -111,6 +111,12 @@ import type {
   NodeRenameParamsSchema,
 } from "./nodes.js";
 import type {
+  ObsFilterSchema,
+  ObsPingParamsSchema,
+  ObsSubscribeParamsSchema,
+  ObsUnsubscribeParamsSchema,
+} from "./observability.js";
+import type {
   SessionsCompactParamsSchema,
   SessionsDeleteParamsSchema,
   SessionsListParamsSchema,
@@ -224,6 +230,10 @@ export type CronRunsParams = Static<typeof CronRunsParamsSchema>;
 export type CronRunLogEntry = Static<typeof CronRunLogEntrySchema>;
 export type LogsTailParams = Static<typeof LogsTailParamsSchema>;
 export type LogsTailResult = Static<typeof LogsTailResultSchema>;
+export type ObsFilter = Static<typeof ObsFilterSchema>;
+export type ObsSubscribeParams = Static<typeof ObsSubscribeParamsSchema>;
+export type ObsUnsubscribeParams = Static<typeof ObsUnsubscribeParamsSchema>;
+export type ObsPingParams = Static<typeof ObsPingParamsSchema>;
 export type ExecApprovalsGetParams = Static<typeof ExecApprovalsGetParamsSchema>;
 export type ExecApprovalsSetParams = Static<typeof ExecApprovalsSetParamsSchema>;
 export type ExecApprovalsNodeGetParams = Static<typeof ExecApprovalsNodeGetParamsSchema>;
