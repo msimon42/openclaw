@@ -3,11 +3,17 @@ import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
 import {
   AuditLogger,
+  CompositeAuditSink,
   createRootTrace,
   HealthTracker,
   JsonlAuditSink,
   SpendTracker,
+  StreamAuditSink,
+  type AuditSink,
   type AuditEventInput,
+  type StreamAuditSnapshot,
+  type StreamAuditSnapshotParams,
+  type StreamedAuditEvent,
 } from "../../packages/observability/src/index.js";
 
 type AgentEventLike = {
@@ -38,15 +44,33 @@ type ObservabilityRuntime = {
   debug: boolean;
   auditDir: string;
   spendDir: string;
+  streamEnabled: boolean;
+  streamReplayWindowMs: number;
+  streamServerMaxEventsPerSec: number;
+  streamServerMaxBufferedEvents: number;
+  streamMessageMaxBytes: number;
+  stream?: StreamAuditSink;
   audit: AuditLogger;
   spend: SpendTracker;
   health: HealthTracker;
   requestStateById: Map<string, RequestState>;
 };
 
+export type ObservabilityStreamSettings = {
+  enabled: boolean;
+  replayWindowMs: number;
+  serverMaxEventsPerSec: number;
+  serverMaxBufferedEvents: number;
+  messageMaxBytes: number;
+};
+
 const DEFAULT_DATA_DIR = path.resolve(process.cwd(), "openclaw-data");
 const DEFAULT_AUDIT_DIR = path.join(DEFAULT_DATA_DIR, "audit");
 const DEFAULT_SPEND_DIR = path.join(DEFAULT_DATA_DIR, "spend");
+const DEFAULT_STREAM_REPLAY_WINDOW_MS = 300_000;
+const DEFAULT_STREAM_MAX_EVENTS_PER_SEC = 50;
+const DEFAULT_STREAM_MAX_BUFFERED_EVENTS = 10_000;
+const DEFAULT_STREAM_MESSAGE_MAX_BYTES = 65_536;
 
 let runtime: ObservabilityRuntime | null = null;
 let runtimeConfigKey = "";
@@ -61,6 +85,13 @@ function num(value: unknown, fallback: number): number {
 
 function text(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() ? path.resolve(value) : fallback;
+}
+
+function streamEnabled(value: unknown): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  return process.env.NODE_ENV !== "production";
 }
 
 function eventPhase(value: unknown): string {
@@ -109,15 +140,58 @@ function buildRuntime(config?: OpenClawConfig): ObservabilityRuntime {
   const auditEnabled = enabled && bool(observability?.audit?.enabled, true);
   const spendEnabled = enabled && bool(observability?.spend?.enabled, true);
   const healthEnabled = enabled && bool(observability?.health?.enabled, true);
+  const streamFeatureEnabled = enabled && streamEnabled(observability?.stream?.enabled);
+  const streamReplayWindowMs = num(
+    observability?.stream?.replayWindowMs,
+    DEFAULT_STREAM_REPLAY_WINDOW_MS,
+  );
+  const streamServerMaxEventsPerSec = num(
+    observability?.stream?.serverMaxEventsPerSec,
+    DEFAULT_STREAM_MAX_EVENTS_PER_SEC,
+  );
+  const streamServerMaxBufferedEvents = num(
+    observability?.stream?.serverMaxBufferedEvents,
+    DEFAULT_STREAM_MAX_BUFFERED_EVENTS,
+  );
+  const streamMessageMaxBytes = num(
+    observability?.stream?.messageMaxBytes,
+    DEFAULT_STREAM_MESSAGE_MAX_BYTES,
+  );
 
   const auditDir = text(observability?.audit?.dir, DEFAULT_AUDIT_DIR);
   const spendDir = text(observability?.spend?.dir, DEFAULT_SPEND_DIR);
+  const stream = streamFeatureEnabled
+    ? new StreamAuditSink({
+        maxBufferedEvents: streamServerMaxBufferedEvents,
+        replayWindowMs: streamReplayWindowMs,
+      })
+    : undefined;
+
+  const sinks: AuditSink[] = [];
+  if (auditEnabled) {
+    sinks.push(
+      new JsonlAuditSink({
+        dir: auditDir,
+        maxPayloadBytes: num(observability?.audit?.maxPayloadBytes, 262_144),
+      }),
+    );
+  }
+  if (stream) {
+    sinks.push(stream);
+  }
+
+  const sink =
+    sinks.length === 0
+      ? {
+          write: () => {},
+        }
+      : sinks.length === 1
+        ? sinks[0]
+        : new CompositeAuditSink(sinks);
+
   const audit = new AuditLogger({
-    enabled: auditEnabled,
-    sink: new JsonlAuditSink({
-      dir: auditDir,
-      maxPayloadBytes: num(observability?.audit?.maxPayloadBytes, 262_144),
-    }),
+    enabled: enabled && sinks.length > 0,
+    sink,
     maxQueueSize: num(observability?.audit?.maxQueueSize, 10_000),
     redaction: {
       mode: redactionMode,
@@ -145,6 +219,12 @@ function buildRuntime(config?: OpenClawConfig): ObservabilityRuntime {
     debug,
     auditDir,
     spendDir,
+    streamEnabled: streamFeatureEnabled,
+    streamReplayWindowMs,
+    streamServerMaxEventsPerSec,
+    streamServerMaxBufferedEvents,
+    streamMessageMaxBytes,
+    stream,
     audit,
     spend,
     health,
@@ -664,6 +744,61 @@ export function getObservabilityPaths(config?: OpenClawConfig): {
     auditDir: rt.auditDir,
     spendDir: rt.spendDir,
   };
+}
+
+export function getObservabilityStreamSettings(
+  config?: OpenClawConfig,
+): ObservabilityStreamSettings {
+  const rt = ensureRuntime(config);
+  return {
+    enabled: rt.streamEnabled,
+    replayWindowMs: rt.streamReplayWindowMs,
+    serverMaxEventsPerSec: rt.streamServerMaxEventsPerSec,
+    serverMaxBufferedEvents: rt.streamServerMaxBufferedEvents,
+    messageMaxBytes: rt.streamMessageMaxBytes,
+  };
+}
+
+export function getObservabilityEventStream(config?: OpenClawConfig): {
+  settings: ObservabilityStreamSettings;
+  subscribe: (listener: (event: StreamedAuditEvent) => void) => () => void;
+  getSnapshot: (params?: StreamAuditSnapshotParams) => StreamAuditSnapshot;
+} | null {
+  const rt = ensureRuntime(config);
+  if (!rt.streamEnabled || !rt.stream) {
+    return null;
+  }
+  return {
+    settings: getObservabilityStreamSettings(config),
+    subscribe: (listener) => rt.stream?.subscribe(listener) ?? (() => {}),
+    getSnapshot: (params) => rt.stream?.getSnapshot(params) ?? { events: [] },
+  };
+}
+
+export function observeObsDrop(
+  params: {
+    connId: string;
+    dropped: number;
+    reason: string;
+  },
+  config?: OpenClawConfig,
+) {
+  const rt = ensureRuntime(config);
+  if (!rt.enabled) {
+    return;
+  }
+  const trace = createRootTrace({ agentId: "system" });
+  emitAudit(rt, {
+    traceId: trace.traceId,
+    spanId: trace.spanId,
+    agentId: "system",
+    eventType: "obs.drop",
+    payload: {
+      connId: params.connId,
+      dropped: params.dropped,
+      reason: params.reason,
+    },
+  });
 }
 
 export async function emitObservabilityTestEvent(config?: OpenClawConfig): Promise<string> {

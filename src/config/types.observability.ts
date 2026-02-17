@@ -28,6 +28,14 @@ export type ObservabilityHealthConfig = {
   emitIntervalMs?: number;
 };
 
+export type ObservabilityStreamConfig = {
+  enabled?: boolean;
+  replayWindowMs?: number;
+  serverMaxEventsPerSec?: number;
+  serverMaxBufferedEvents?: number;
+  messageMaxBytes?: number;
+};
+
 export type ObservabilityConfig = {
   enabled?: boolean;
   debug?: boolean;
@@ -35,4 +43,5 @@ export type ObservabilityConfig = {
   audit?: ObservabilityAuditConfig;
   spend?: ObservabilitySpendConfig;
   health?: ObservabilityHealthConfig;
+  stream?: ObservabilityStreamConfig;
 };

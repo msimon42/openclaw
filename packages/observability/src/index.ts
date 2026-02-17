@@ -5,6 +5,7 @@ export * from "./audit/audit-logger.js";
 export * from "./audit/sinks/jsonl-sink.js";
 export * from "./audit/sinks/memory-sink.js";
 export * from "./audit/sinks/composite-sink.js";
+export * from "./audit/sinks/stream-sink.js";
 
 export * from "./trace/trace.js";
 export * from "./trace/trace-context.js";

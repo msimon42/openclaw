@@ -146,6 +146,16 @@ const ObservabilitySchema = z
       })
       .strict()
       .optional(),
+    stream: z
+      .object({
+        enabled: z.boolean().optional(),
+        replayWindowMs: z.number().int().positive().optional(),
+        serverMaxEventsPerSec: z.number().int().positive().optional(),
+        serverMaxBufferedEvents: z.number().int().positive().optional(),
+        messageMaxBytes: z.number().int().positive().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .optional();
