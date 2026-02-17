@@ -944,7 +944,7 @@
               },
               {
                 "group": "Multi-agent",
-                "pages": ["concepts/multi-agent", "concepts/presence"]
+                "pages": ["concepts/multi-agent", "concepts/presence", "MULTI_AGENT_WORKFLOWS"]
               },
               {
                 "group": "Messages and delivery",

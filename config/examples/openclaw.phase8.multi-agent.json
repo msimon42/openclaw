@@ -1,0 +1,83 @@
+{
+  "session": {
+    "mainKey": "main",
+    "dmScope": "per-account-channel-peer"
+  },
+  "agents": {
+    "defaults": {
+      "multiAgent": {
+        "workspaceRoot": "./workspaces",
+        "artifactAutoPublishChars": 2000,
+        "delegation": {
+          "timeoutMs": 120000,
+          "maxDepth": 3,
+          "maxCallsPerTrace": 8,
+          "maxToolCalls": 24,
+          "dedupeWindowMs": 60000,
+          "pairRateLimitPerMinute": 6
+        }
+      }
+    },
+    "list": [
+      {
+        "id": "main",
+        "name": "Main",
+        "workspace": "./workspaces/agents/main",
+        "agentDir": "~/.openclaw/agents/main/agent"
+      },
+      {
+        "id": "admin",
+        "name": "Admin",
+        "workspace": "./workspaces/agents/admin",
+        "agentDir": "~/.openclaw/agents/admin/agent"
+      },
+      {
+        "id": "worker",
+        "name": "Worker",
+        "workspace": "./workspaces/agents/worker",
+        "agentDir": "~/.openclaw/agents/worker/agent"
+      },
+      {
+        "id": "social",
+        "name": "Social",
+        "workspace": "./workspaces/agents/social",
+        "agentDir": "~/.openclaw/agents/social/agent"
+      },
+      {
+        "id": "research",
+        "name": "Research",
+        "workspace": "./workspaces/agents/research",
+        "agentDir": "~/.openclaw/agents/research/agent"
+      }
+    ]
+  },
+  "bindings": [
+    {
+      "agentId": "social",
+      "match": {
+        "channel": "telegram",
+        "accountId": "default"
+      }
+    },
+    {
+      "agentId": "worker",
+      "match": {
+        "channel": "discord",
+        "accountId": "ops",
+        "guildId": "123456789012345678"
+      }
+    },
+    {
+      "agentId": "research",
+      "match": {
+        "channel": "slack",
+        "accountId": "default",
+        "peer": {
+          "kind": "channel",
+          "id": "C123ABC456"
+        }
+      }
+    }
+  ]
+}
+
