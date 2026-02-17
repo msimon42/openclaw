@@ -1,0 +1,35 @@
+{
+  "observability": {
+    "enabled": true,
+    "debug": false,
+    "redactionMode": "strict",
+    "audit": {
+      "enabled": true,
+      "dir": "./openclaw-data/audit",
+      "maxPayloadBytes": 262144,
+      "maxQueueSize": 10000
+    },
+    "spend": {
+      "enabled": true,
+      "dir": "./openclaw-data/spend",
+      "summaryPath": "./openclaw-data/spend/summary.json",
+      "pricing": {
+        "openai-codex/gpt-5.3-codex": {
+          "inputPer1kUsd": 0.01,
+          "outputPer1kUsd": 0.03
+        },
+        "ollama/*": {
+          "inputPer1kUsd": 0,
+          "outputPer1kUsd": 0
+        }
+      }
+    },
+    "health": {
+      "enabled": true,
+      "failureThreshold": 3,
+      "windowMs": 60000,
+      "openMs": 60000,
+      "emitIntervalMs": 30000
+    }
+  }
+}

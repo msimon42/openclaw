@@ -50,6 +50,16 @@ Phase 5 adds intent-aware model orchestration with deterministic fallbacks and h
 - Example config: `config/examples/openclaw.phase5.json`
 - Router debug: `openclaw agent --local --model-router-debug --message "Implement this TypeScript refactor" --agent main`
 
+### Phase 6 observability profile
+
+Phase 6 adds structured audit logging, request/model/tool trace correlation, spend tracking, and model health state transitions.
+
+- Setup guide: [Phase 6 Observability](https://docs.openclaw.ai/phase-6-observability)
+- Example config: `config/examples/openclaw.phase6.observability.json`
+- Verify: `openclaw obs verify`
+- Tail logs: `openclaw obs tail --today --pretty`
+- Spend report: `openclaw spend report --today`
+
 ## Install (recommended)
 
 Runtime: **Node ≥22**.
