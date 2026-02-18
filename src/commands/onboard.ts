@@ -35,8 +35,21 @@ export async function onboardCommand(opts: OnboardOptions, runtime: RuntimeEnv =
     normalizedAuthChoice === opts.authChoice && flow === opts.flow
       ? opts
       : { ...opts, authChoice: normalizedAuthChoice, flow };
+  const profileRaw =
+    typeof normalizedOpts.profile === "string"
+      ? normalizedOpts.profile.trim().toLowerCase()
+      : undefined;
+  if (profileRaw && profileRaw !== "standard" && profileRaw !== "enhanced") {
+    runtime.error('Invalid --profile (use "standard" or "enhanced").');
+    runtime.exit(1);
+    return;
+  }
+  const finalOpts =
+    profileRaw && profileRaw !== normalizedOpts.profile
+      ? { ...normalizedOpts, profile: profileRaw as "standard" | "enhanced" }
+      : normalizedOpts;
 
-  if (normalizedOpts.nonInteractive && normalizedOpts.acceptRisk !== true) {
+  if (finalOpts.nonInteractive && finalOpts.acceptRisk !== true) {
     runtime.error(
       [
         "Non-interactive onboarding requires explicit risk acknowledgement.",
@@ -48,11 +61,16 @@ export async function onboardCommand(opts: OnboardOptions, runtime: RuntimeEnv =
     return;
   }
 
-  if (normalizedOpts.reset) {
+  if (finalOpts.reset) {
+    if (finalOpts.nonInteractive && !finalOpts.forceReset) {
+      runtime.error("Non-interactive reset requires --force.");
+      runtime.exit(1);
+      return;
+    }
     const snapshot = await readConfigFileSnapshot();
     const baseConfig = snapshot.valid ? snapshot.config : {};
     const workspaceDefault =
-      normalizedOpts.workspace ?? baseConfig.agents?.defaults?.workspace ?? DEFAULT_WORKSPACE;
+      finalOpts.workspace ?? baseConfig.agents?.defaults?.workspace ?? DEFAULT_WORKSPACE;
     await handleReset("full", resolveUserPath(workspaceDefault), runtime);
   }
 
@@ -67,12 +85,12 @@ export async function onboardCommand(opts: OnboardOptions, runtime: RuntimeEnv =
     );
   }
 
-  if (normalizedOpts.nonInteractive) {
-    await runNonInteractiveOnboarding(normalizedOpts, runtime);
+  if (finalOpts.nonInteractive) {
+    await runNonInteractiveOnboarding(finalOpts, runtime);
     return;
   }
 
-  await runInteractiveOnboarding(normalizedOpts, runtime);
+  await runInteractiveOnboarding(finalOpts, runtime);
 }
 
 export type { OnboardOptions } from "./onboard-types.js";

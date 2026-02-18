@@ -27,6 +27,11 @@ export async function runNonInteractiveOnboarding(
     runtime.exit(1);
     return;
   }
+  if (opts.profile === "enhanced" && mode === "remote") {
+    runtime.error('Enhanced onboarding is currently supported only with "--mode local".');
+    runtime.exit(1);
+    return;
+  }
 
   if (mode === "remote") {
     await runNonInteractiveOnboardingRemote({ opts, runtime, baseConfig });

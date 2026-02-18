@@ -8,6 +8,17 @@ import { DEFAULT_GATEWAY_DAEMON_RUNTIME } from "../daemon-runtime.js";
 import { healthCommand } from "../health.js";
 import { applyOnboardingLocalWorkspaceConfig } from "../onboard-config.js";
 import {
+  applyEnhancedModelStackConfig,
+  applyEnhancedMultiAgentConfig,
+  applyEnhancedObservabilityConfig,
+  applyEnhancedSkillsBundleConfig,
+  ensureEnhancedObservabilityDirs,
+  initializeEnhancedAgentTemplates,
+  runEnhancedFinalVerification,
+  validateEnhancedModelStackAuth,
+  validateEnhancedObservabilityConfig,
+} from "../onboard-enhanced-profile.js";
+import {
   applyWizardMetadata,
   DEFAULT_WORKSPACE,
   ensureWorkspaceAndSessions,
@@ -29,6 +40,7 @@ export async function runNonInteractiveOnboardingLocal(params: {
 }) {
   const { opts, runtime, baseConfig } = params;
   const mode = "local" as const;
+  const profile = opts.profile ?? "standard";
 
   const workspaceDir = resolveNonInteractiveWorkspaceDir({
     opts,
@@ -77,13 +89,85 @@ export async function runNonInteractiveOnboardingLocal(params: {
 
   nextConfig = applyNonInteractiveSkillsConfig({ nextConfig, opts, runtime });
 
-  nextConfig = applyWizardMetadata(nextConfig, { command: "onboard", mode });
+  if (profile === "enhanced") {
+    nextConfig = applyEnhancedModelStackConfig({ cfg: nextConfig });
+    const authValidation = validateEnhancedModelStackAuth({ cfg: nextConfig });
+    if (authValidation.issues.length > 0 && !opts.skipAuthCheck) {
+      runtime.error(
+        [
+          "Enhanced onboarding auth preflight failed.",
+          ...authValidation.issues.map((issue) => `- ${issue.path}: ${issue.message}`),
+          "Re-run with provider auth configured, or pass --skip-auth-check to continue.",
+        ].join("\n"),
+      );
+      runtime.exit(1);
+      return;
+    }
+    if (authValidation.issues.length > 0 && opts.skipAuthCheck) {
+      runtime.log(
+        [
+          "Enhanced onboarding: proceeding with --skip-auth-check despite auth issues:",
+          ...authValidation.issues.map((issue) => `- ${issue.path}: ${issue.message}`),
+        ].join("\n"),
+      );
+    }
+    if (authValidation.warnings.length > 0) {
+      runtime.log(
+        authValidation.warnings
+          .map((warning) => `Enhanced onboarding warning: ${warning.path}: ${warning.message}`)
+          .join("\n"),
+      );
+    }
+
+    nextConfig = applyEnhancedSkillsBundleConfig({
+      cfg: nextConfig,
+      bundleIds: ["enhancedCore"],
+    });
+    nextConfig = applyEnhancedMultiAgentConfig({
+      cfg: nextConfig,
+      workspaceDir,
+    });
+    nextConfig = applyEnhancedObservabilityConfig({ cfg: nextConfig });
+    const obsIssues = validateEnhancedObservabilityConfig(nextConfig);
+    if (obsIssues.length > 0) {
+      runtime.error(obsIssues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
+      runtime.exit(1);
+      return;
+    }
+    await ensureEnhancedObservabilityDirs(nextConfig);
+    const verification = await runEnhancedFinalVerification(nextConfig);
+    if (!verification.ok) {
+      runtime.error(
+        [
+          "Enhanced onboarding final verification failed.",
+          ...verification.issues.map((issue) => `- ${issue.path}: ${issue.message}`),
+        ].join("\n"),
+      );
+      runtime.exit(1);
+      return;
+    }
+    if (verification.warnings.length > 0) {
+      runtime.log(
+        verification.warnings
+          .map((warning) => `Enhanced onboarding warning: ${warning.path}: ${warning.message}`)
+          .join("\n"),
+      );
+    }
+  }
+
+  nextConfig = applyWizardMetadata(nextConfig, { command: "onboard", mode, profile });
   await writeConfigFile(nextConfig);
   logConfigUpdated(runtime);
 
   await ensureWorkspaceAndSessions(workspaceDir, runtime, {
     skipBootstrap: Boolean(nextConfig.agents?.defaults?.skipBootstrap),
   });
+  if (profile === "enhanced") {
+    const templateInit = initializeEnhancedAgentTemplates({ cfg: nextConfig });
+    if (templateInit.warnings.length > 0) {
+      runtime.log(templateInit.warnings.join("\n"));
+    }
+  }
 
   await installGatewayDaemonNonInteractive({
     nextConfig,
@@ -128,6 +212,17 @@ export async function runNonInteractiveOnboardingLocal(params: {
   });
 
   if (!opts.json) {
+    if (profile === "enhanced") {
+      runtime.log(
+        [
+          "Enhanced onboarding next steps:",
+          `- ${formatCliCommand("openclaw agents list")}`,
+          `- ${formatCliCommand("openclaw models list")}`,
+          `- ${formatCliCommand("openclaw status --all")}`,
+          `- ${formatCliCommand("openclaw dashboard --no-open")}`,
+        ].join("\n"),
+      );
+    }
     runtime.log(
       `Tip: run \`${formatCliCommand("openclaw configure --section web")}\` to store your Brave API key for web_search. Docs: https://docs.openclaw.ai/tools/web`,
     );

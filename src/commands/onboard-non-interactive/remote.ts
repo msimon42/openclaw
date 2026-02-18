@@ -32,7 +32,11 @@ export async function runNonInteractiveOnboardingRemote(params: {
       },
     },
   };
-  nextConfig = applyWizardMetadata(nextConfig, { command: "onboard", mode });
+  nextConfig = applyWizardMetadata(nextConfig, {
+    command: "onboard",
+    mode,
+    profile: opts.profile ?? "standard",
+  });
   await writeConfigFile(nextConfig);
   logConfigUpdated(runtime);
 
