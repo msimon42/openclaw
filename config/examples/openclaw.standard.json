@@ -1,0 +1,26 @@
+{
+  "wizard": {
+    "lastRunAt": "2026-02-18T00:00:00.000Z",
+    "lastRunProfile": "standard",
+    "lastRunVersion": "2026.2.18",
+    "lastRunCommand": "onboard",
+    "lastRunMode": "local"
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "~/.openclaw/workspace",
+      "model": {
+        "primary": "openai-codex/gpt-5.3-codex"
+      }
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "bind": "loopback",
+    "port": 18789,
+    "auth": {
+      "mode": "token",
+      "token": "replace-with-gateway-token"
+    }
+  }
+}
