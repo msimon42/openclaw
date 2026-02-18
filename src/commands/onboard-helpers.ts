@@ -5,7 +5,12 @@ import path from "node:path";
 import { inspect } from "node:util";
 import type { OpenClawConfig } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
-import type { NodeManagerChoice, OnboardMode, ResetScope } from "./onboard-types.js";
+import type {
+  NodeManagerChoice,
+  OnboardMode,
+  OnboardProfile,
+  ResetScope,
+} from "./onboard-types.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR, ensureAgentWorkspace } from "../agents/workspace.js";
 import { CONFIG_PATH } from "../config/config.js";
 import { resolveSessionTranscriptsDirForAgent } from "../config/sessions.js";
@@ -111,7 +116,7 @@ export function printWizardHeader(runtime: RuntimeEnv) {
 
 export function applyWizardMetadata(
   cfg: OpenClawConfig,
-  params: { command: string; mode: OnboardMode },
+  params: { command: string; mode: OnboardMode; profile?: OnboardProfile },
 ): OpenClawConfig {
   const commit = process.env.GIT_COMMIT?.trim() || process.env.GIT_SHA?.trim() || undefined;
   return {
@@ -119,6 +124,7 @@ export function applyWizardMetadata(
     wizard: {
       ...cfg.wizard,
       lastRunAt: new Date().toISOString(),
+      lastRunProfile: params.profile ?? cfg.wizard?.lastRunProfile,
       lastRunVersion: VERSION,
       lastRunCommit: commit,
       lastRunCommand: params.command,

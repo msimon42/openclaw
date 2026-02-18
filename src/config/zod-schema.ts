@@ -186,6 +186,7 @@ export const OpenClawSchema = z
     wizard: z
       .object({
         lastRunAt: z.string().optional(),
+        lastRunProfile: z.union([z.literal("standard"), z.literal("enhanced")]).optional(),
         lastRunVersion: z.string().optional(),
         lastRunCommit: z.string().optional(),
         lastRunCommand: z.string().optional(),
@@ -622,6 +623,7 @@ export const OpenClawSchema = z
     skills: z
       .object({
         allowBundled: z.array(z.string()).optional(),
+        bundles: z.record(z.string(), z.array(z.string())).optional(),
         policy: SkillPolicySchema.optional(),
         load: z
           .object({

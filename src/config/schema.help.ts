@@ -3,6 +3,12 @@ import { IRC_FIELD_HELP } from "./schema.irc.js";
 export const FIELD_HELP: Record<string, string> = {
   "meta.lastTouchedVersion": "Auto-set when OpenClaw writes the config.",
   "meta.lastTouchedAt": "ISO timestamp of the last config write (auto-set).",
+  "wizard.lastRunAt": "ISO timestamp of the last onboarding/configure wizard run.",
+  "wizard.lastRunProfile": 'Onboarding profile used on the last run ("standard" or "enhanced").',
+  "wizard.lastRunVersion": "OpenClaw version recorded on the last wizard run.",
+  "wizard.lastRunCommit": "Build commit recorded on the last wizard run when available.",
+  "wizard.lastRunCommand": "CLI command that last updated wizard metadata.",
+  "wizard.lastRunMode": 'Wizard mode from the last run ("local" or "remote").',
   "update.channel": 'Update channel for git + npm installs ("stable", "beta", or "dev").',
   "update.checkOnStart": "Check for npm updates when the gateway starts (default: true).",
   "gateway.remote.url": "Remote Gateway WebSocket URL (ws:// or wss://).",
@@ -275,6 +281,19 @@ export const FIELD_HELP: Record<string, string> = {
     "Override primary/fallback model refs for default everyday intent.",
   "agents.defaults.modelRouter.routes.x":
     "Override primary/fallback model refs for X/Twitter intent.",
+  "models.routingProfiles":
+    "Reusable model router presets (for onboarding profiles) keyed by profile name.",
+  "models.routingProfiles.*.defaultRoute":
+    'Default route for this routing profile ("coding", "everyday", or "x").',
+  "models.routingProfiles.*.disabledProviders":
+    "Optional provider denylist for this routing profile.",
+  "models.routingProfiles.*.routes.coding":
+    "Coding route primary/fallback model refs for this routing profile.",
+  "models.routingProfiles.*.routes.everyday":
+    "Everyday route primary/fallback model refs for this routing profile.",
+  "models.routingProfiles.*.routes.x":
+    "X route primary/fallback model refs for this routing profile.",
+  "skills.bundles": "Named skill bundles used by onboarding profiles (bundle id -> skill id list).",
   "agents.defaults.memorySearch.sync.onSearch":
     "Lazy sync: schedule a reindex on search after changes.",
   "agents.defaults.memorySearch.sync.watch": "Watch memory files for changes (chokidar).",

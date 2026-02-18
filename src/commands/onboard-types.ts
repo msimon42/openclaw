@@ -2,6 +2,7 @@ import type { ChannelId } from "../channels/plugins/types.js";
 import type { GatewayDaemonRuntime } from "./daemon-runtime.js";
 
 export type OnboardMode = "local" | "remote";
+export type OnboardProfile = "standard" | "enhanced";
 export type AuthChoice =
   // Legacy alias for `setup-token` (kept for backwards CLI compatibility).
   | "oauth"
@@ -83,10 +84,15 @@ export type ProviderChoice = ChannelChoice;
 
 export type OnboardOptions = {
   mode?: OnboardMode;
+  profile?: OnboardProfile;
   /** "manual" is an alias for "advanced". */
   flow?: "quickstart" | "advanced" | "manual";
   workspace?: string;
   nonInteractive?: boolean;
+  /** Skip enhanced onboarding provider auth preflight checks in non-interactive mode. */
+  skipAuthCheck?: boolean;
+  /** Force reset behavior for onboarding reset actions (required for non-interactive resets). */
+  forceReset?: boolean;
   /** Required for non-interactive onboarding; skips the interactive risk prompt when true. */
   acceptRisk?: boolean;
   reset?: boolean;

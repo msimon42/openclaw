@@ -52,6 +52,7 @@ export type OpenClawConfig = {
   };
   wizard?: {
     lastRunAt?: string;
+    lastRunProfile?: "standard" | "enhanced";
     lastRunVersion?: string;
     lastRunCommit?: string;
     lastRunCommand?: string;

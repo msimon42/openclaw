@@ -33,6 +33,9 @@ export const wizardHandlers: GatewayRequestHandlers = {
     const sessionId = randomUUID();
     const opts = {
       mode: params.mode,
+      profile: params.profile,
+      nonInteractive: params.nonInteractive,
+      forceReset: params.forceReset,
       workspace: typeof params.workspace === "string" ? params.workspace : undefined,
     };
     const session = new WizardSession((prompter) =>

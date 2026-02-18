@@ -34,6 +34,8 @@ export type SkillsInstallConfig = {
 export type SkillsConfig = {
   /** Optional bundled-skill allowlist (only affects bundled skills). */
   allowBundled?: string[];
+  /** Named onboarding bundles (for reproducible setup profiles). */
+  bundles?: Record<string, string[]>;
   /** Global policy for skill capabilities and runtime permissions. */
   policy?: SkillPolicyConfig;
   load?: SkillsLoadConfig;

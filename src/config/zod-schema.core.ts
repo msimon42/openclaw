@@ -81,11 +81,34 @@ export const BedrockDiscoverySchema = z
   .strict()
   .optional();
 
+const ModelRoutingProfileRouteSchema = z
+  .object({
+    primary: z.string().optional(),
+    fallbacks: z.array(z.string()).optional(),
+  })
+  .strict();
+
+const ModelRoutingProfileSchema = z
+  .object({
+    defaultRoute: z.union([z.literal("coding"), z.literal("everyday"), z.literal("x")]).optional(),
+    disabledProviders: z.array(z.string()).optional(),
+    routes: z
+      .object({
+        coding: ModelRoutingProfileRouteSchema.optional(),
+        everyday: ModelRoutingProfileRouteSchema.optional(),
+        x: ModelRoutingProfileRouteSchema.optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
 export const ModelsConfigSchema = z
   .object({
     mode: z.union([z.literal("merge"), z.literal("replace")]).optional(),
     providers: z.record(z.string(), ModelProviderSchema).optional(),
     bedrockDiscovery: BedrockDiscoverySchema,
+    routingProfiles: z.record(z.string(), ModelRoutingProfileSchema).optional(),
   })
   .strict()
   .optional();
