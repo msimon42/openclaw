@@ -5,6 +5,7 @@ export const TAB_GROUPS = [
   {
     label: "Control",
     tabs: [
+      "onboarding",
       "overview",
       "channels",
       "instances",
@@ -22,6 +23,7 @@ export const TAB_GROUPS = [
 
 export type Tab =
   | "agents"
+  | "onboarding"
   | "overview"
   | "channels"
   | "instances"
@@ -40,6 +42,7 @@ export type Tab =
 
 const TAB_PATHS: Record<Tab, string> = {
   agents: "/agents",
+  onboarding: "/onboarding",
   overview: "/overview",
   channels: "/channels",
   instances: "/instances",
@@ -142,6 +145,8 @@ export function iconForTab(tab: Tab): IconName {
   switch (tab) {
     case "agents":
       return "folder";
+    case "onboarding":
+      return "puzzle";
     case "chat":
       return "messageSquare";
     case "overview":
@@ -181,6 +186,8 @@ export function titleForTab(tab: Tab) {
   switch (tab) {
     case "agents":
       return "Agents";
+    case "onboarding":
+      return "Onboarding";
     case "overview":
       return "Overview";
     case "channels":
@@ -220,6 +227,8 @@ export function subtitleForTab(tab: Tab) {
   switch (tab) {
     case "agents":
       return "Manage agent workspaces, tools, and identities.";
+    case "onboarding":
+      return "Run Gateway onboarding via RPC and review step-by-step config changes.";
     case "overview":
       return "Gateway status, entry points, and a fast health read.";
     case "channels":

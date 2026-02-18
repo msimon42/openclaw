@@ -1,7 +1,7 @@
 import { html, nothing } from "lit";
+import type { ObsEventRecord } from "../../../src/observability/stream-protocol.js";
 import type { AppViewState } from "./app-view-state.ts";
 import { parseAgentSessionKey } from "../../../src/routing/session-key.js";
-import type { ObsEventRecord } from "../../../src/observability/stream-protocol.js";
 import { refreshChatAvatar } from "./app-chat.ts";
 import { renderUsageTab } from "./app-render-usage-tab.ts";
 import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.helpers.ts";
@@ -40,11 +40,11 @@ import {
   saveExecApprovals,
   updateExecApprovalsFormValue,
 } from "./controllers/exec-approvals.ts";
+import { callWorkerFromInbox, loadInbox, promoteInboxMessage } from "./controllers/inbox.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { deleteSession, loadSessions, patchSession } from "./controllers/sessions.ts";
-import { callWorkerFromInbox, loadInbox, promoteInboxMessage } from "./controllers/inbox.ts";
 import {
   installSkill,
   loadSkills,
@@ -60,15 +60,16 @@ import { renderChat } from "./views/chat.ts";
 import { renderConfig } from "./views/config.ts";
 import { renderCron } from "./views/cron.ts";
 import { renderDebug } from "./views/debug.ts";
+import { renderDelegationActivity } from "./views/delegation-activity.ts";
 import { renderExecApprovalPrompt } from "./views/exec-approval.ts";
 import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation.ts";
+import { renderInbox } from "./views/inbox.ts";
 import { renderInstances } from "./views/instances.ts";
 import { renderLogs } from "./views/logs.ts";
 import { renderNodes } from "./views/nodes.ts";
 import { renderObservability } from "./views/observability.ts";
+import { renderOnboardingWizard } from "./views/onboarding-wizard.ts";
 import { renderOverview } from "./views/overview.ts";
-import { renderInbox } from "./views/inbox.ts";
-import { renderDelegationActivity } from "./views/delegation-activity.ts";
 import { renderSessions } from "./views/sessions.ts";
 import { renderSkills } from "./views/skills.ts";
 
@@ -294,6 +295,72 @@ export function renderApp(state: AppViewState) {
             ${isChat ? renderChatControls(state) : nothing}
           </div>
         </section>
+
+        ${
+          state.tab === "onboarding"
+            ? renderOnboardingWizard({
+                connected: state.connected,
+                starting: state.wizardStarting,
+                advancing: state.wizardAdvancing,
+                sessionId: state.wizardSessionId,
+                status: state.wizardStatus,
+                error: state.wizardError,
+                step: state.wizardStep,
+                startMode: state.wizardStartMode,
+                startProfile: state.wizardStartProfile,
+                startNonInteractive: state.wizardStartNonInteractive,
+                startForceReset: state.wizardStartForceReset,
+                answerText: state.wizardAnswerText,
+                answerConfirm: state.wizardAnswerConfirm,
+                answerValue: state.wizardAnswerValue,
+                answerMultiValues: state.wizardAnswerMultiValues,
+                onStart: () => {
+                  void state.handleWizardStart();
+                },
+                onSubmit: () => {
+                  void state.handleWizardSubmit();
+                },
+                onCancel: () => {
+                  void state.handleWizardCancel();
+                },
+                onStartModeChange: (value) => {
+                  state.wizardStartMode = value;
+                },
+                onStartProfileChange: (value) => {
+                  state.wizardStartProfile = value;
+                },
+                onStartNonInteractiveChange: (value) => {
+                  state.wizardStartNonInteractive = value;
+                },
+                onStartForceResetChange: (value) => {
+                  state.wizardStartForceReset = value;
+                },
+                onAnswerTextChange: (value) => {
+                  state.wizardAnswerText = value;
+                },
+                onAnswerConfirmChange: (value) => {
+                  state.wizardAnswerConfirm = value;
+                },
+                onAnswerValueChange: (value) => {
+                  state.wizardAnswerValue = value;
+                },
+                onAnswerMultiToggle: (value, checked) => {
+                  const hasValue = state.wizardAnswerMultiValues.some(
+                    (entry) => JSON.stringify(entry) === JSON.stringify(value),
+                  );
+                  if (checked && !hasValue) {
+                    state.wizardAnswerMultiValues = [...state.wizardAnswerMultiValues, value];
+                    return;
+                  }
+                  if (!checked && hasValue) {
+                    state.wizardAnswerMultiValues = state.wizardAnswerMultiValues.filter(
+                      (entry) => JSON.stringify(entry) !== JSON.stringify(value),
+                    );
+                  }
+                },
+              })
+            : nothing
+        }
 
         ${
           state.tab === "overview"
