@@ -1,5 +1,4 @@
 import path from "node:path";
-import type { OpenClawConfig, ConfigValidationIssue } from "./types.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { validateModelRouterAllowlist, validateModelRouterAuth } from "../agents/model-router.js";
 import { CHANNEL_IDS, normalizeChatChannelId } from "../channels/registry.js";
@@ -15,6 +14,7 @@ import { findDuplicateAgentDirs, formatDuplicateAgentDirError } from "./agent-di
 import { findDuplicateAgentWorkspaces, formatDuplicateWorkspaceWarning } from "./agent-workspaces.js";
 import { applyAgentDefaults, applyModelDefaults, applySessionDefaults } from "./defaults.js";
 import { findLegacyConfigIssues } from "./legacy.js";
+import type { OpenClawConfig, ConfigValidationIssue } from "./types.js";
 import { OpenClawSchema } from "./zod-schema.js";
 
 const AVATAR_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;

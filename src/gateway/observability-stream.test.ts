@@ -146,7 +146,7 @@ describe("GatewayObservabilityStream", () => {
       maxEventsPerSec: 1,
     });
 
-    listener?.(
+    (listener as ((event: StreamedAuditEvent) => void) | null)?.(
       makeEvent({
         eventId: "e-1",
         traceId: "trace-1",
@@ -155,7 +155,7 @@ describe("GatewayObservabilityStream", () => {
         eventType: "tool.call.start",
       }),
     );
-    listener?.(
+    (listener as ((event: StreamedAuditEvent) => void) | null)?.(
       makeEvent({
         eventId: "e-2",
         traceId: "trace-2",
@@ -164,7 +164,7 @@ describe("GatewayObservabilityStream", () => {
         eventType: "tool.call.end",
       }),
     );
-    listener?.(
+    (listener as ((event: StreamedAuditEvent) => void) | null)?.(
       makeEvent({
         eventId: "e-3",
         traceId: "trace-3",
@@ -216,7 +216,7 @@ describe("GatewayObservabilityStream", () => {
     stream.subscribe("conn-1", { schemaVersion: OBS_SCHEMA_VERSION });
     stream.unsubscribe("conn-1");
 
-    listener?.(
+    (listener as ((event: StreamedAuditEvent) => void) | null)?.(
       makeEvent({
         eventId: "e-1",
         traceId: "trace-1",

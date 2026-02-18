@@ -40,6 +40,12 @@ function createContext() {
   };
 }
 
+const makeClient = (connId: string) =>
+  ({
+    connId,
+    connect: { role: "operator", scopes: ["operator.admin"] },
+  }) as never;
+
 describe("observability ws handlers", () => {
   it("subscribe calls stream and returns success", async () => {
     const respond = vi.fn();
@@ -52,7 +58,7 @@ describe("observability ws handlers", () => {
         filters: { agentId: "main", eventTypes: ["tool.call.blocked"] },
         maxEventsPerSec: 5,
       },
-      client: { connId: "conn-1", connect: { role: "operator", scopes: ["operator.admin"] } },
+      client: makeClient("conn-1"),
       isWebchatConnect: () => false,
       respond,
       context: context as never,
@@ -73,7 +79,7 @@ describe("observability ws handlers", () => {
     await observabilityHandlers[OBS_METHOD_UNSUBSCRIBE]({
       req: { type: "req", id: "2", method: OBS_METHOD_UNSUBSCRIBE },
       params: { schemaVersion: OBS_SCHEMA_VERSION },
-      client: { connId: "conn-2", connect: { role: "operator", scopes: ["operator.admin"] } },
+      client: makeClient("conn-2"),
       isWebchatConnect: () => false,
       respond,
       context: context as never,
@@ -90,7 +96,7 @@ describe("observability ws handlers", () => {
     await observabilityHandlers[OBS_METHOD_PING]({
       req: { type: "req", id: "3", method: OBS_METHOD_PING },
       params: { schemaVersion: OBS_SCHEMA_VERSION },
-      client: { connId: "conn-3", connect: { role: "operator", scopes: ["operator.admin"] } },
+      client: makeClient("conn-3"),
       isWebchatConnect: () => false,
       respond,
       context: context as never,
@@ -107,7 +113,7 @@ describe("observability ws handlers", () => {
     await observabilityHandlers[OBS_METHOD_SUBSCRIBE]({
       req: { type: "req", id: "4", method: OBS_METHOD_SUBSCRIBE },
       params: { schemaVersion: "0.9" },
-      client: { connId: "conn-4", connect: { role: "operator", scopes: ["operator.admin"] } },
+      client: makeClient("conn-4"),
       isWebchatConnect: () => false,
       respond,
       context: context as never,
@@ -127,7 +133,7 @@ describe("observability ws handlers", () => {
     await observabilityHandlers[OBS_METHOD_SUBSCRIBE]({
       req: { type: "req", id: "5", method: OBS_METHOD_SUBSCRIBE },
       params: { schemaVersion: OBS_SCHEMA_VERSION },
-      client: { connId: "conn-5", connect: { role: "operator", scopes: ["operator.admin"] } },
+      client: makeClient("conn-5"),
       isWebchatConnect: () => false,
       respond,
       context: {

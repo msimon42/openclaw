@@ -86,7 +86,7 @@ function createHarness(pluginConfig: Record<string, unknown>): ClawGuardianHarne
       system: {
         enqueueSystemEvent,
       },
-    } as OpenClawPluginApi["runtime"],
+    } as unknown as OpenClawPluginApi["runtime"],
     logger: logs.logger,
     registerTool: () => undefined,
     registerHook: () => undefined,
@@ -119,11 +119,12 @@ function createHarness(pluginConfig: Record<string, unknown>): ClawGuardianHarne
         toolName,
         params: toolParams,
       };
-      return await beforeToolCallHook(event, {
+      const result = await beforeToolCallHook(event, {
         toolName,
         agentId: ctx?.agentId,
         sessionKey: ctx?.sessionKey,
       });
+      return result ?? undefined;
     },
   };
 }

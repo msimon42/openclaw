@@ -196,7 +196,7 @@ describe("agents.call", () => {
   });
 
   it("returns timeout status when delegated run does not complete in time", async () => {
-    mocks.waitForAgentJob.mockResolvedValueOnce(null);
+    mocks.waitForAgentJob.mockResolvedValueOnce(null as never);
     const { respond, promise } = makeReq("agents.call", {
       fromAgentId: "main",
       toAgentId: "worker",
@@ -243,7 +243,10 @@ describe("agents.call", () => {
     const blockedPayload = getOkPayload(second.respond);
     expect(blockedPayload.status).toBe("blocked");
 
-    releaseAgent?.();
+    const release = releaseAgent as (() => void) | null;
+    if (release) {
+      release();
+    }
     await first.promise;
   });
 

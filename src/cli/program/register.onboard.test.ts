@@ -3,7 +3,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { registerOnboardCommand } from "./register.onboard.js";
 
 const mocks = vi.hoisted(() => ({
-  onboardCommand: vi.fn(async () => {}),
+  onboardCommand: vi.fn(async (..._args: unknown[]) => {}),
 }));
 
 vi.mock("../../commands/onboard.js", () => ({

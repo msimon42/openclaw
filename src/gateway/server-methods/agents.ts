@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { GatewayRequestHandlers, RespondFn } from "./types.js";
 import {
   listAgentIds,
   resolveAgentDir,
@@ -65,6 +64,7 @@ import {
   resolveGatewaySessionStoreTarget,
 } from "../session-utils.js";
 import { updateSessionStore } from "../../config/sessions.js";
+import type { GatewayRequestHandlers, RespondFn } from "./types.js";
 
 const BOOTSTRAP_FILE_NAMES = [
   DEFAULT_AGENTS_FILENAME,
