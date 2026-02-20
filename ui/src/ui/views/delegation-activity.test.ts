@@ -96,5 +96,33 @@ describe("renderDelegationActivity", () => {
     expect(container.textContent).toContain("trace-keep");
     expect(container.textContent).not.toContain("trace-drop");
   });
-});
 
+  it("tolerates compacted/truncated marker strings in delegation payloads", async () => {
+    const container = document.createElement("div");
+    render(
+      renderDelegationActivity({
+        events: [
+          makeEvent({
+            eventId: "1",
+            eventType: "agent.call.end",
+            traceId: "trace-markers",
+            agentId: "main",
+            payload: {
+              fromAgentId: "main",
+              toAgentId: "worker",
+              status: "[compacted: tool output removed to free context]",
+              note: "[truncated: output exceeded context limit]",
+            },
+          }),
+        ],
+        traceFilter: "",
+        onTraceFilterChange: () => undefined,
+      }),
+      container,
+    );
+    await Promise.resolve();
+
+    expect(container.textContent).toContain("trace-markers");
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(1);
+  });
+});
