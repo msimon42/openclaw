@@ -384,6 +384,28 @@ export function listAgentsForGateway(cfg: OpenClawConfig): {
       identity,
     });
   }
+  const lastActiveByAgent = new Map<string, number>();
+  try {
+    const combined = loadCombinedSessionStoreForGateway(cfg).store;
+    for (const [key, entry] of Object.entries(combined)) {
+      if (key === "global" || key === "unknown") {
+        continue;
+      }
+      const parsed = parseAgentSessionKey(key);
+      const agentId = normalizeAgentId(parsed?.agentId ?? defaultId);
+      const updatedAt = typeof entry?.updatedAt === "number" ? entry.updatedAt : 0;
+      if (!updatedAt) {
+        continue;
+      }
+      const previous = lastActiveByAgent.get(agentId) ?? 0;
+      if (updatedAt > previous) {
+        lastActiveByAgent.set(agentId, updatedAt);
+      }
+    }
+  } catch {
+    // Best-effort metadata only.
+  }
+  const now = Date.now();
   const explicitIds = new Set(
     (cfg.agents?.list ?? [])
       .map((entry) => (entry?.id ? normalizeAgentId(entry.id) : ""))
@@ -398,9 +420,20 @@ export function listAgentsForGateway(cfg: OpenClawConfig): {
   }
   const agents = agentIds.map((id) => {
     const meta = configuredById.get(id);
+    const displayName = meta?.identity?.name ?? meta?.name ?? id;
+    const lastActive = lastActiveByAgent.get(id);
+    const status: GatewayAgentRow["status"] =
+      typeof lastActive === "number" && lastActive > 0
+        ? now - lastActive <= 5 * 60_000
+          ? "active"
+          : "idle"
+        : "offline";
     return {
       id,
       name: meta?.name,
+      displayName,
+      lastActive,
+      status,
       identity: meta?.identity,
     };
   });

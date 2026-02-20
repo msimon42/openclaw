@@ -3,6 +3,12 @@ import { IRC_FIELD_HELP } from "./schema.irc.js";
 export const FIELD_HELP: Record<string, string> = {
   "meta.lastTouchedVersion": "Auto-set when OpenClaw writes the config.",
   "meta.lastTouchedAt": "ISO timestamp of the last config write (auto-set).",
+  "wizard.lastRunAt": "ISO timestamp of the last onboarding/configure wizard run.",
+  "wizard.lastRunProfile": 'Onboarding profile used on the last run ("standard" or "enhanced").',
+  "wizard.lastRunVersion": "OpenClaw version recorded on the last wizard run.",
+  "wizard.lastRunCommit": "Build commit recorded on the last wizard run when available.",
+  "wizard.lastRunCommand": "CLI command that last updated wizard metadata.",
+  "wizard.lastRunMode": 'Wizard mode from the last run ("local" or "remote").',
   "update.channel": 'Update channel for git + npm installs ("stable", "beta", or "dev").',
   "update.checkOnStart": "Check for npm updates when the gateway starts (default: true).",
   "gateway.remote.url": "Remote Gateway WebSocket URL (ws:// or wss://).",
@@ -60,6 +66,27 @@ export const FIELD_HELP: Record<string, string> = {
     "Include full message payloads in trace output (default: true).",
   "diagnostics.cacheTrace.includePrompt": "Include prompt text in trace output (default: true).",
   "diagnostics.cacheTrace.includeSystem": "Include system prompt in trace output (default: true).",
+  "observability.enabled": "Enable structured audit, spend, and model/tool health telemetry.",
+  "observability.debug":
+    "Debug mode for observability payload capture (still redacts secrets and truncates long text).",
+  "observability.redactionMode":
+    'Redaction policy for payload fields ("strict" hashes by default, "debug" truncates with redaction).',
+  "observability.audit.dir":
+    "Directory for audit JSONL files (default: ./openclaw-data/audit). One file per UTC day.",
+  "observability.audit.maxPayloadBytes":
+    "Maximum serialized audit event size before payload truncation (default: 262144).",
+  "observability.audit.maxQueueSize":
+    "Maximum buffered audit events before oldest entries are dropped (default: 10000).",
+  "observability.spend.dir":
+    "Directory for spend JSONL files and summary.json (default: ./openclaw-data/spend).",
+  "observability.spend.summaryPath":
+    "Optional explicit path for aggregated spend summary JSON (default: <spend.dir>/summary.json).",
+  "observability.health.failureThreshold":
+    "Consecutive failures inside the health window required to open a model circuit (default: 3).",
+  "observability.health.windowMs":
+    "Sliding window in milliseconds used for health failure counting (default: 60000).",
+  "observability.health.openMs":
+    "Circuit-open duration in milliseconds before half-open probing (default: 60000).",
   "tools.exec.applyPatch.enabled":
     "Experimental. Enables apply_patch for OpenAI models when allowed by tool policy.",
   "tools.exec.applyPatch.workspaceOnly":
@@ -256,6 +283,35 @@ export const FIELD_HELP: Record<string, string> = {
     "Session/channel scope for QMD recall (same syntax as session.sendPolicy; default: direct-only). Use match.rawKeyPrefix to match full agent-prefixed session keys.",
   "agents.defaults.memorySearch.cache.maxEntries":
     "Optional cap on cached embeddings (best-effort).",
+  "agents.defaults.modelRouter":
+    "Optional intent router for model selection (coding/default/X) before fallback execution.",
+  "agents.defaults.modelRouter.enabled":
+    "Enable intent-based model routing before model fallback (default: false).",
+  "agents.defaults.modelRouter.debug":
+    "Log structured router decisions for each run (can also be enabled with OPENCLAW_MODEL_ROUTER_DEBUG=1).",
+  "agents.defaults.modelRouter.defaultRoute":
+    'Default router route when heuristics do not match ("coding", "everyday", or "x").',
+  "agents.defaults.modelRouter.disabledProviders":
+    'Optional provider denylist for router output candidates (e.g., ["xai"]).',
+  "agents.defaults.modelRouter.routes.coding":
+    "Override primary/fallback model refs for coding/repo intent.",
+  "agents.defaults.modelRouter.routes.everyday":
+    "Override primary/fallback model refs for default everyday intent.",
+  "agents.defaults.modelRouter.routes.x":
+    "Override primary/fallback model refs for X/Twitter intent.",
+  "models.routingProfiles":
+    "Reusable model router presets (for onboarding profiles) keyed by profile name.",
+  "models.routingProfiles.*.defaultRoute":
+    'Default route for this routing profile ("coding", "everyday", or "x").',
+  "models.routingProfiles.*.disabledProviders":
+    "Optional provider denylist for this routing profile.",
+  "models.routingProfiles.*.routes.coding":
+    "Coding route primary/fallback model refs for this routing profile.",
+  "models.routingProfiles.*.routes.everyday":
+    "Everyday route primary/fallback model refs for this routing profile.",
+  "models.routingProfiles.*.routes.x":
+    "X route primary/fallback model refs for this routing profile.",
+  "skills.bundles": "Named skill bundles used by onboarding profiles (bundle id -> skill id list).",
   "agents.defaults.memorySearch.sync.onSearch":
     "Lazy sync: schedule a reindex on search after changes.",
   "agents.defaults.memorySearch.sync.watch": "Watch memory files for changes (chokidar).",

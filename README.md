@@ -42,6 +42,32 @@ Model note: while any model is supported, I strongly recommend **Anthropic Pro/M
 - Models config + CLI: [Models](https://docs.openclaw.ai/concepts/models)
 - Auth profile rotation (OAuth vs API keys) + fallbacks: [Model failover](https://docs.openclaw.ai/concepts/model-failover)
 
+### Phase 5 routing profile
+
+Phase 5 adds intent-aware model orchestration with deterministic fallbacks and hard-stop handling for allowlist/auth misconfiguration.
+
+- Setup guide: [Phase 5 Model Routing](https://docs.openclaw.ai/phase-5-model-routing)
+- Example config: `config/examples/openclaw.phase5.json`
+- Router debug: `openclaw agent --local --model-router-debug --message "Implement this TypeScript refactor" --agent main`
+
+### Phase 6 observability profile
+
+Phase 6 adds structured audit logging, request/model/tool trace correlation, spend tracking, and model health state transitions.
+
+- Setup guide: [Phase 6 Observability](https://docs.openclaw.ai/phase-6-observability)
+- Example config: `config/examples/openclaw.phase6.observability.json`
+- Verify: `openclaw obs verify`
+- Tail logs: `openclaw obs tail --today --pretty`
+- Spend report: `openclaw spend report --today`
+
+### Phase 7 live observability UI
+
+Phase 7 extends the existing Control UI with live runtime observability over Gateway WebSocket streaming.
+
+- Setup guide: [Observability UI Streaming](https://docs.openclaw.ai/OBSERVABILITY_UI)
+- Example config: `config/examples/openclaw.phase7.control-ui-observability.json`
+- Stream schema: `config/observability-stream.schema.json`
+
 ## Install (recommended)
 
 Runtime: **Node ≥22**.

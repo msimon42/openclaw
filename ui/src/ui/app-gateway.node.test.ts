@@ -43,12 +43,19 @@ vi.mock("./gateway.ts", () => {
 });
 
 function createHost() {
+  const observabilityStream = {
+    attachClient: vi.fn(),
+    handleHello: vi.fn(async () => {}),
+    handleDisconnected: vi.fn(),
+    handleGatewayEvent: vi.fn(() => false),
+  };
   return {
     settings: {
       gatewayUrl: "ws://127.0.0.1:18789",
       token: "",
       sessionKey: "main",
       lastActiveSessionKey: "main",
+      selectedAgentId: "main",
       theme: "system",
       chatFocusMode: false,
       chatShowThinking: true,
@@ -79,6 +86,7 @@ function createHost() {
     refreshSessionsAfterChat: new Set<string>(),
     execApprovalQueue: [],
     execApprovalError: null,
+    observabilityStream,
   } as unknown as Parameters<typeof connectGateway>[0];
 }
 

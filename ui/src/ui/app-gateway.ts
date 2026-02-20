@@ -1,3 +1,4 @@
+import type { ObservabilityStreamService } from "../services/observability-stream.ts";
 import { CHAT_SESSIONS_ACTIVE_MINUTES, flushChatQueueForEvent } from "./app-chat.ts";
 import type { EventLogEntry } from "./app-events.ts";
 import {
@@ -54,6 +55,7 @@ type GatewayHost = {
   refreshSessionsAfterChat: Set<string>;
   execApprovalQueue: ExecApprovalRequest[];
   execApprovalError: string | null;
+  observabilityStream: ObservabilityStreamService;
 };
 
 type SessionDefaultsSnapshot = {
@@ -137,6 +139,7 @@ export function connectGateway(host: GatewayHost) {
       host.lastError = null;
       host.hello = hello;
       applySnapshot(host, hello);
+      void host.observabilityStream.handleHello(hello);
       // Reset orphaned chat run state from before disconnect.
       // Any in-flight run's final event was lost during the disconnect window.
       host.chatRunId = null;
@@ -154,6 +157,7 @@ export function connectGateway(host: GatewayHost) {
         return;
       }
       host.connected = false;
+      host.observabilityStream.handleDisconnected();
       // Code 1012 = Service Restart (expected during config saves, don't show as error)
       if (code !== 1012) {
         host.lastError = `disconnected (${code}): ${reason || "no reason"}`;
@@ -173,7 +177,11 @@ export function connectGateway(host: GatewayHost) {
     },
   });
   host.client = client;
+  host.observabilityStream.attachClient(client);
   previousClient?.stop();
+  if (previousClient) {
+    host.observabilityStream.handleDisconnected();
+  }
   client.start();
 }
 
@@ -192,6 +200,10 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   ].slice(0, 250);
   if (host.tab === "debug") {
     host.eventLog = host.eventLogBuffer;
+  }
+
+  if (host.observabilityStream.handleGatewayEvent(evt)) {
+    return;
   }
 
   if (evt.event === "agent") {

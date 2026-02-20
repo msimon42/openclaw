@@ -1,0 +1,27 @@
+{
+  "version": "phase5",
+  "providers": {
+    "openai-codex": {
+      "auth": "oauth",
+      "models": ["gpt-5.3-codex"]
+    },
+    "ollama": {
+      "auth": "api-key",
+      "env": "OLLAMA_API_KEY",
+      "baseUrl": "https://ollama.com/v1",
+      "models": ["kimi-k2.5:cloud", "deepseek-v3.2:cloud"]
+    },
+    "xai": {
+      "auth": "api-key",
+      "env": "XAI_API_KEY",
+      "baseUrl": "https://api.x.ai/v1",
+      "models": ["grok-3-fast-latest"]
+    },
+    "openrouter": {
+      "auth": "api-key",
+      "env": "OPENROUTER_API_KEY",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "models": ["free"]
+    }
+  }
+}

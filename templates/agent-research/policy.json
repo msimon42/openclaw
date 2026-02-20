@@ -1,0 +1,15 @@
+{
+  "role": "research",
+  "description": "Evidence and analysis specialist.",
+  "permissions": {
+    "callAgent": false,
+    "messageAgent": true,
+    "artifacts": "rw",
+    "network": "enabled",
+    "filesystem": "workspace"
+  },
+  "routingTags": {
+    "modelProfile": "analysis",
+    "riskTier": "review-required"
+  }
+}

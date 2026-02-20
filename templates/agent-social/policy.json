@@ -1,0 +1,15 @@
+{
+  "role": "social",
+  "description": "External communication specialist.",
+  "permissions": {
+    "callAgent": false,
+    "messageAgent": true,
+    "artifacts": "read",
+    "network": "limited",
+    "filesystem": "workspace-readonly"
+  },
+  "routingTags": {
+    "modelProfile": "concise-writing",
+    "riskTier": "low-risk"
+  }
+}

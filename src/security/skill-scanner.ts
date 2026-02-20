@@ -91,6 +91,12 @@ const LINE_RULES: LineRule[] = [
     pattern: /\beval\s*\(|new\s+Function\s*\(/,
   },
   {
+    ruleId: "dynamic-require",
+    severity: "critical",
+    message: "Dynamic require detected",
+    pattern: /\brequire\s*\(\s*(?!["'`])[^)]+\)/,
+  },
+  {
     ruleId: "crypto-mining",
     severity: "critical",
     message: "Possible crypto-mining reference detected",
@@ -133,6 +139,14 @@ const SOURCE_RULES: SourceRule[] = [
       "Environment variable access combined with network send — possible credential harvesting",
     pattern: /process\.env/,
     requiresContext: /\bfetch\b|\bpost\b|http\.request/i,
+  },
+  {
+    ruleId: "hidden-downloads",
+    severity: "critical",
+    message: "Network download combined with local file write detected",
+    pattern: /\b(fetch|https?\.(?:get|request)|axios\.(?:get|request)|undici\.request)\b/i,
+    requiresContext:
+      /\b(writeFile|writeFileSync|createWriteStream|appendFile|appendFileSync|chmod|\.pipe\s*\()/,
   },
 ];
 

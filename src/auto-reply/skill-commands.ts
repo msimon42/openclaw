@@ -32,9 +32,11 @@ export function listSkillCommandsForWorkspace(params: {
   workspaceDir: string;
   cfg: OpenClawConfig;
   skillFilter?: string[];
+  agentId?: string;
 }): SkillCommandSpec[] {
   return buildWorkspaceSkillCommandSpecs(params.workspaceDir, {
     config: params.cfg,
+    agentId: params.agentId,
     skillFilter: params.skillFilter,
     eligibility: { remote: getRemoteSkillEligibility() },
     reservedNames: listReservedChatSlashCommandNames(),
@@ -64,6 +66,7 @@ export function listSkillCommandsForAgents(params: {
     visitedDirs.add(canonicalDir);
     const commands = buildWorkspaceSkillCommandSpecs(workspaceDir, {
       config: params.cfg,
+      agentId,
       eligibility: { remote: getRemoteSkillEligibility() },
       reservedNames: used,
     });

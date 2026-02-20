@@ -1,0 +1,15 @@
+{
+  "role": "admin",
+  "description": "Orchestrator and policy owner.",
+  "permissions": {
+    "callAgent": true,
+    "messageAgent": true,
+    "artifacts": "rw",
+    "network": "limited",
+    "filesystem": "workspace"
+  },
+  "routingTags": {
+    "modelProfile": "coordination",
+    "riskTier": "high-trust"
+  }
+}

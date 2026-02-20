@@ -1,8 +1,17 @@
+export type SkillPolicyConfig = {
+  allow?: string[];
+  deny?: string[];
+  allowDomains?: string[];
+  writePaths?: string[];
+  requireApproval?: boolean;
+};
+
 export type SkillConfig = {
   enabled?: boolean;
   apiKey?: string;
   env?: Record<string, string>;
   config?: Record<string, unknown>;
+  policy?: SkillPolicyConfig;
 };
 
 export type SkillsLoadConfig = {
@@ -38,6 +47,10 @@ export type SkillsLimitsConfig = {
 export type SkillsConfig = {
   /** Optional bundled-skill allowlist (only affects bundled skills). */
   allowBundled?: string[];
+  /** Named onboarding bundles (for reproducible setup profiles). */
+  bundles?: Record<string, string[]>;
+  /** Global policy for skill capabilities and runtime permissions. */
+  policy?: SkillPolicyConfig;
   load?: SkillsLoadConfig;
   install?: SkillsInstallConfig;
   limits?: SkillsLimitsConfig;

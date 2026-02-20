@@ -29,6 +29,11 @@ import { createExecApprovalForwarder } from "../infra/exec-approval-forwarder.js
 import { onHeartbeatEvent } from "../infra/heartbeat-events.js";
 import { startHeartbeatRunner, type HeartbeatRunner } from "../infra/heartbeat-runner.js";
 import { getMachineDisplayName } from "../infra/machine-name.js";
+import {
+  getObservabilityEventStream,
+  getObservabilityStreamSettings,
+  observeObsDrop,
+} from "../infra/observability.js";
 import { ensureOpenClawCliOnPath } from "../infra/path-env.js";
 import { setGatewaySigusr1RestartPolicy, setPreRestartDeferralCheck } from "../infra/restart.js";
 import {
@@ -39,6 +44,7 @@ import {
 import { scheduleGatewayUpdateCheck } from "../infra/update-startup.js";
 import { startDiagnosticHeartbeat, stopDiagnosticHeartbeat } from "../logging/diagnostic.js";
 import { createSubsystemLogger, runtimeForLogger } from "../logging/subsystem.js";
+import { OBS_STREAM_EVENTS, OBS_STREAM_METHODS } from "../observability/stream-protocol.js";
 import { getGlobalHookRunner, runGlobalGatewayStopSafely } from "../plugins/hook-runner-global.js";
 import { createEmptyPluginRegistry } from "../plugins/registry.js";
 import type { PluginServicesHandle } from "../plugins/services.js";
@@ -51,6 +57,7 @@ import { startGatewayConfigReloader } from "./config-reload.js";
 import type { ControlUiRootState } from "./control-ui.js";
 import { ExecApprovalManager } from "./exec-approval-manager.js";
 import { NodeRegistry } from "./node-registry.js";
+import { GatewayObservabilityStream } from "./observability-stream.js";
 import type { startBrowserControlServerIfEnabled } from "./server-browser.js";
 import { createChannelManager } from "./server-channels.js";
 import { createAgentEventHandler } from "./server-chat.js";
@@ -257,7 +264,7 @@ export async function startGatewayServer(
     Object.entries(channelLogs).map(([id, logger]) => [id, runtimeForLogger(logger)]),
   ) as Record<ChannelId, RuntimeEnv>;
   const channelMethods = listChannelPlugins().flatMap((plugin) => plugin.gatewayMethods ?? []);
-  const gatewayMethods = Array.from(new Set([...baseGatewayMethods, ...channelMethods]));
+  let gatewayMethods = Array.from(new Set([...baseGatewayMethods, ...channelMethods]));
   let pluginServices: PluginServicesHandle | null = null;
   const runtimeConfig = await resolveGatewayRuntimeConfig({
     cfg: cfgAtStart,
@@ -374,6 +381,31 @@ export async function startGatewayServer(
     logHooks,
     logPlugins,
   });
+
+  const observabilityStreamBridge = getObservabilityEventStream(cfgAtStart);
+  const observabilityStreamSettings = getObservabilityStreamSettings(cfgAtStart);
+  let observabilityStream: GatewayObservabilityStream | null = null;
+  if (observabilityStreamBridge && observabilityStreamSettings.enabled) {
+    observabilityStream = new GatewayObservabilityStream({
+      settings: observabilityStreamSettings,
+      stream: observabilityStreamBridge,
+      broadcastToConnIds,
+      onDrop: ({ connId, dropped, reason }) =>
+        observeObsDrop(
+          {
+            connId,
+            dropped,
+            reason,
+          },
+          cfgAtStart,
+        ),
+    });
+    gatewayMethods = Array.from(new Set([...gatewayMethods, ...OBS_STREAM_METHODS]));
+  }
+  const gatewayEvents = observabilityStream
+    ? Array.from(new Set([...GATEWAY_EVENTS, ...OBS_STREAM_EVENTS]))
+    : GATEWAY_EVENTS;
+
   let bonjourStop: (() => Promise<void>) | null = null;
   const nodeRegistry = new NodeRegistry();
   const nodePresenceTimers = new Map<string, ReturnType<typeof setInterval>>();
@@ -548,7 +580,7 @@ export async function startGatewayServer(
     resolvedAuth,
     rateLimiter: authRateLimiter,
     gatewayMethods,
-    events: GATEWAY_EVENTS,
+    events: gatewayEvents,
     logGateway: log,
     logHealth,
     logWsControl,
@@ -596,6 +628,7 @@ export async function startGatewayServer(
       markChannelLoggedOut,
       wizardRunner,
       broadcastVoiceWakeChanged,
+      observabilityStream: observabilityStream ?? undefined,
     },
   });
   logGatewayStartup({
@@ -730,6 +763,7 @@ export async function startGatewayServer(
       }
       skillsChangeUnsub();
       authRateLimiter?.dispose();
+      observabilityStream?.close();
       channelHealthMonitor?.stop();
       await close(opts);
     },

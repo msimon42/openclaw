@@ -25,6 +25,23 @@ export type AgentModelListConfig = {
   fallbacks?: string[];
 };
 
+export type AgentModelRouterRouteConfig = {
+  primary?: string;
+  fallbacks?: string[];
+};
+
+export type AgentModelRouterConfig = {
+  enabled?: boolean;
+  debug?: boolean;
+  defaultRoute?: "coding" | "everyday" | "x";
+  disabledProviders?: string[];
+  routes?: {
+    coding?: AgentModelRouterRouteConfig;
+    everyday?: AgentModelRouterRouteConfig;
+    x?: AgentModelRouterRouteConfig;
+  };
+};
+
 export type AgentContextPruningConfig = {
   mode?: "off" | "cache-ttl";
   /** TTL to consider cache expired (duration string, default unit: minutes). */
@@ -124,12 +141,30 @@ export type CliBackendConfig = {
 export type AgentDefaultsConfig = {
   /** Primary model and fallbacks (provider/model). */
   model?: AgentModelListConfig;
+  /** Optional intent-based model router (Phase 5). */
+  modelRouter?: AgentModelRouterConfig;
   /** Optional image-capable model and fallbacks (provider/model). */
   imageModel?: AgentModelListConfig;
   /** Model catalog with optional aliases (full provider/model keys). */
   models?: Record<string, AgentModelEntryConfig>;
   /** Agent working directory (preferred). Used as the default cwd for agent runs. */
   workspace?: string;
+  /** Multi-agent workspace/delegation defaults for Phase 8 workflows. */
+  multiAgent?: {
+    /** Project-local root containing workspaces/agents + workspaces/_shared. */
+    workspaceRoot?: string;
+    /** Auto-publish oversized delegation payloads as artifacts after this size. */
+    artifactAutoPublishChars?: number;
+    /** Default delegation guardrails for agents.call. */
+    delegation?: {
+      timeoutMs?: number;
+      maxDepth?: number;
+      maxCallsPerTrace?: number;
+      maxToolCalls?: number;
+      dedupeWindowMs?: number;
+      pairRateLimitPerMinute?: number;
+    };
+  };
   /** Optional repository root for system prompt runtime line (overrides auto-detect). */
   repoRoot?: string;
   /** Skip bootstrap (BOOTSTRAP.md creation, etc.) for pre-configured deployments. */

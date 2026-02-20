@@ -25,6 +25,7 @@ export function logNonInteractiveOnboardingJson(params: {
     JSON.stringify(
       {
         mode: params.mode,
+        profile: params.opts.profile ?? "standard",
         workspace: params.workspaceDir,
         authChoice: params.authChoice,
         gateway: params.gateway,

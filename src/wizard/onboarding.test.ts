@@ -86,6 +86,12 @@ const isSystemdUserServiceAvailable = vi.hoisted(() => vi.fn(async () => true));
 const ensureControlUiAssetsBuilt = vi.hoisted(() => vi.fn(async () => ({ ok: true })));
 const runTui = vi.hoisted(() => vi.fn(async (_options: unknown) => {}));
 const setupOnboardingShellCompletion = vi.hoisted(() => vi.fn(async () => {}));
+const runEnhancedOnboardingWizard = vi.hoisted(() =>
+  vi.fn(async () => ({
+    config: {},
+    workspaceDir: "/tmp/openclaw-workspace",
+  })),
+);
 
 vi.mock("../commands/onboard-channels.js", () => ({
   setupChannels,
@@ -190,6 +196,10 @@ vi.mock("./onboarding.finalize.js", () => ({
   finalizeOnboardingWizard,
 }));
 
+vi.mock("./onboarding.enhanced.js", () => ({
+  runEnhancedOnboardingWizard,
+}));
+
 vi.mock("./onboarding.completion.js", () => ({
   setupOnboardingShellCompletion,
 }));
@@ -272,6 +282,7 @@ describe("runOnboardingWizard", () => {
     await expect(
       runOnboardingWizard(
         {
+          profile: "standard",
           acceptRisk: true,
           flow: "quickstart",
           authChoice: "skip",
@@ -300,6 +311,7 @@ describe("runOnboardingWizard", () => {
 
     await runOnboardingWizard(
       {
+        profile: "standard",
         acceptRisk: true,
         flow: "quickstart",
         authChoice: "skip",
@@ -343,6 +355,7 @@ describe("runOnboardingWizard", () => {
 
     await runOnboardingWizard(
       {
+        profile: "standard",
         acceptRisk: true,
         flow: "quickstart",
         mode: "local",
@@ -384,6 +397,7 @@ describe("runOnboardingWizard", () => {
 
       await runOnboardingWizard(
         {
+          profile: "standard",
           acceptRisk: true,
           flow: "quickstart",
           authChoice: "skip",
@@ -407,5 +421,28 @@ describe("runOnboardingWizard", () => {
         process.env.BRAVE_API_KEY = prevBraveKey;
       }
     }
+  });
+
+  it("runs enhanced onboarding flow when profile is enhanced", async () => {
+    const prompter = createWizardPrompter();
+    const runtime = createRuntime();
+
+    await runOnboardingWizard(
+      {
+        profile: "enhanced",
+        acceptRisk: true,
+        skipUi: true,
+      },
+      runtime,
+      prompter,
+    );
+
+    expect(runEnhancedOnboardingWizard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        opts: expect.objectContaining({ profile: "enhanced" }),
+      }),
+    );
+    expect(setupChannels).not.toHaveBeenCalled();
+    expect(setupSkills).not.toHaveBeenCalled();
   });
 });

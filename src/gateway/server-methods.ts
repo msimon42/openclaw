@@ -13,6 +13,7 @@ import { healthHandlers } from "./server-methods/health.js";
 import { logsHandlers } from "./server-methods/logs.js";
 import { modelsHandlers } from "./server-methods/models.js";
 import { nodeHandlers } from "./server-methods/nodes.js";
+import { observabilityHandlers } from "./server-methods/observability.js";
 import { pushHandlers } from "./server-methods/push.js";
 import { sendHandlers } from "./server-methods/send.js";
 import { sessionsHandlers } from "./server-methods/sessions.js";
@@ -65,6 +66,7 @@ const READ_METHODS = new Set([
   "tts.providers",
   "models.list",
   "agents.list",
+  "artifacts.fetch",
   "agent.identity.get",
   "skills.status",
   "voicewake.get",
@@ -80,11 +82,17 @@ const READ_METHODS = new Set([
   "chat.history",
   "config.get",
   "talk.config",
+  "OBS.SUBSCRIBE",
+  "OBS.UNSUBSCRIBE",
+  "OBS.PING",
 ]);
 const WRITE_METHODS = new Set([
   "send",
   "agent",
   "agent.wait",
+  "agents.call",
+  "agents.message",
+  "artifacts.publish",
   "wake",
   "talk.mode",
   "tts.enable",
@@ -198,6 +206,7 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...agentHandlers,
   ...agentsHandlers,
   ...browserHandlers,
+  ...observabilityHandlers,
 };
 
 export async function handleGatewayRequest(

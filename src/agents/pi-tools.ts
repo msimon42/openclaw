@@ -162,6 +162,7 @@ export const __testing = {
 } as const;
 
 export function createOpenClawCodingTools(options?: {
+  runId?: string;
   exec?: ExecToolDefaults & ProcessToolDefaults;
   messageProvider?: string;
   agentAccountId?: string;
@@ -455,6 +456,7 @@ export function createOpenClawCodingTools(options?: {
       requireExplicitMessageTarget: options?.requireExplicitMessageTarget,
       disableMessageTool: options?.disableMessageTool,
       requesterAgentIdOverride: agentId,
+      runId: options?.runId,
     }),
   ];
   // Security: treat unknown/undefined as unauthorized (opt-in, not opt-out)
@@ -489,8 +491,11 @@ export function createOpenClawCodingTools(options?: {
   );
   const withHooks = normalized.map((tool) =>
     wrapToolWithBeforeToolCallHook(tool, {
+      runId: options?.runId,
       agentId,
       sessionKey: options?.sessionKey,
+      config: options?.config,
+      workspaceDir: workspaceRoot,
       loopDetection: resolveToolLoopDetectionConfig({ cfg: options?.config, agentId }),
     }),
   );

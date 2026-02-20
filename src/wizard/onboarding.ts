@@ -3,6 +3,7 @@ import type {
   GatewayAuthChoice,
   OnboardMode,
   OnboardOptions,
+  OnboardProfile,
   ResetScope,
 } from "../commands/onboard-types.js";
 import type { OpenClawConfig } from "../config/config.js";
@@ -95,6 +96,56 @@ export async function runOnboardingWizard(
 
   const quickstartHint = `Configure details later via ${formatCliCommand("openclaw configure")}.`;
   const manualHint = "Configure port, network, Tailscale, and auth options.";
+  const explicitProfileRaw = opts.profile?.trim();
+  if (
+    explicitProfileRaw &&
+    explicitProfileRaw !== "standard" &&
+    explicitProfileRaw !== "enhanced"
+  ) {
+    runtime.error('Invalid --profile (use "standard" or "enhanced").');
+    runtime.exit(1);
+    return;
+  }
+  const explicitProfile = explicitProfileRaw as OnboardProfile | undefined;
+  const profile =
+    explicitProfile ??
+    ((await prompter.select({
+      message: "Setup profile",
+      options: [
+        {
+          value: "standard",
+          label: "Standard",
+          hint: "Existing onboarding flow",
+        },
+        {
+          value: "enhanced",
+          label: "Enhanced",
+          hint: "Model stack + skills bundles + multi-agent + observability defaults",
+        },
+      ],
+      initialValue: baseConfig.wizard?.lastRunProfile === "enhanced" ? "enhanced" : "standard",
+    })) as OnboardProfile);
+
+  if (profile === "enhanced") {
+    if (opts.mode === "remote") {
+      await prompter.note(
+        'Enhanced profile currently supports local setup only. Re-run with `--mode local` or omit "--mode".',
+        "Enhanced profile",
+      );
+      runtime.exit(1);
+      return;
+    }
+    const { runEnhancedOnboardingWizard } = await import("./onboarding.enhanced.js");
+    await runEnhancedOnboardingWizard({
+      opts: { ...opts, mode: "local", profile: "enhanced" },
+      runtime,
+      prompter,
+      baseConfig,
+    });
+    await prompter.outro("Enhanced onboarding complete.");
+    return;
+  }
+
   const explicitFlowRaw = opts.flow?.trim();
   const normalizedExplicitFlow = explicitFlowRaw === "manual" ? "advanced" : explicitFlowRaw;
   if (
@@ -145,24 +196,53 @@ export async function runOnboardingWizard(
     });
 
     if (action === "reset") {
-      const workspaceDefault =
-        baseConfig.agents?.defaults?.workspace ?? onboardHelpers.DEFAULT_WORKSPACE;
-      const resetScope = (await prompter.select({
-        message: "Reset scope",
-        options: [
-          { value: "config", label: "Config only" },
-          {
-            value: "config+creds+sessions",
-            label: "Config + creds + sessions",
-          },
-          {
-            value: "full",
-            label: "Full reset (config + creds + sessions + workspace)",
-          },
-        ],
-      })) as ResetScope;
-      await onboardHelpers.handleReset(resetScope, resolveUserPath(workspaceDefault), runtime);
-      baseConfig = {};
+      if (!opts.forceReset) {
+        const resetConfirmed = await prompter.confirm({
+          message: "Confirm reset of existing onboarding config?",
+          initialValue: false,
+        });
+        if (!resetConfirmed) {
+          await prompter.note("Reset cancelled. Continuing with modify mode.", "Config handling");
+        } else {
+          const workspaceDefault =
+            baseConfig.agents?.defaults?.workspace ?? onboardHelpers.DEFAULT_WORKSPACE;
+          const resetScope = (await prompter.select({
+            message: "Reset scope",
+            options: [
+              { value: "config", label: "Config only" },
+              {
+                value: "config+creds+sessions",
+                label: "Config + creds + sessions",
+              },
+              {
+                value: "full",
+                label: "Full reset (config + creds + sessions + workspace)",
+              },
+            ],
+          })) as ResetScope;
+          await onboardHelpers.handleReset(resetScope, resolveUserPath(workspaceDefault), runtime);
+          baseConfig = {};
+        }
+      } else {
+        const workspaceDefault =
+          baseConfig.agents?.defaults?.workspace ?? onboardHelpers.DEFAULT_WORKSPACE;
+        const resetScope = (await prompter.select({
+          message: "Reset scope",
+          options: [
+            { value: "config", label: "Config only" },
+            {
+              value: "config+creds+sessions",
+              label: "Config + creds + sessions",
+            },
+            {
+              value: "full",
+              label: "Full reset (config + creds + sessions + workspace)",
+            },
+          ],
+        })) as ResetScope;
+        await onboardHelpers.handleReset(resetScope, resolveUserPath(workspaceDefault), runtime);
+        baseConfig = {};
+      }
     }
   }
 
@@ -315,7 +395,11 @@ export async function runOnboardingWizard(
     const { promptRemoteGatewayConfig } = await import("../commands/onboard-remote.js");
     const { logConfigUpdated } = await import("../config/logging.js");
     let nextConfig = await promptRemoteGatewayConfig(baseConfig, prompter);
-    nextConfig = onboardHelpers.applyWizardMetadata(nextConfig, { command: "onboard", mode });
+    nextConfig = onboardHelpers.applyWizardMetadata(nextConfig, {
+      command: "onboard",
+      mode,
+      profile: "standard",
+    });
     await writeConfigFile(nextConfig);
     logConfigUpdated(runtime);
     await prompter.outro("Remote gateway configured.");
@@ -447,7 +531,11 @@ export async function runOnboardingWizard(
   const { setupInternalHooks } = await import("../commands/onboard-hooks.js");
   nextConfig = await setupInternalHooks(nextConfig, runtime, prompter);
 
-  nextConfig = onboardHelpers.applyWizardMetadata(nextConfig, { command: "onboard", mode });
+  nextConfig = onboardHelpers.applyWizardMetadata(nextConfig, {
+    command: "onboard",
+    mode,
+    profile: "standard",
+  });
   await writeConfigFile(nextConfig);
 
   const { finalizeOnboardingWizard } = await import("./onboarding.finalize.js");

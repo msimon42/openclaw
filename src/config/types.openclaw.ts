@@ -21,6 +21,7 @@ import type {
 } from "./types.messages.js";
 import type { ModelsConfig } from "./types.models.js";
 import type { NodeHostConfig } from "./types.node-host.js";
+import type { ObservabilityConfig } from "./types.observability.js";
 import type { PluginsConfig } from "./types.plugins.js";
 import type { SkillsConfig } from "./types.skills.js";
 import type { ToolsConfig } from "./types.tools.js";
@@ -51,6 +52,7 @@ export type OpenClawConfig = {
   };
   wizard?: {
     lastRunAt?: string;
+    lastRunProfile?: "standard" | "enhanced";
     lastRunVersion?: string;
     lastRunCommit?: string;
     lastRunCommand?: string;
@@ -58,6 +60,7 @@ export type OpenClawConfig = {
   };
   diagnostics?: DiagnosticsConfig;
   logging?: LoggingConfig;
+  observability?: ObservabilityConfig;
   update?: {
     /** Update channel for git + npm installs ("stable", "beta", or "dev"). */
     channel?: "stable" | "beta" | "dev";

@@ -1,0 +1,7 @@
+{
+  "id": "lobster",
+  "name": "lobster",
+  "version": "1.0.0",
+  "entry": "SKILL.md",
+  "capabilities": ["model.invoke"]
+}

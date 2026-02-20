@@ -1,0 +1,233 @@
+{
+  "wizard": {
+    "lastRunAt": "2026-02-18T00:00:00.000Z",
+    "lastRunProfile": "enhanced",
+    "lastRunVersion": "2026.2.18",
+    "lastRunCommand": "onboard",
+    "lastRunMode": "local"
+  },
+  "auth": {
+    "profiles": {
+      "openai-codex:default": { "provider": "openai-codex", "mode": "oauth" },
+      "ollama:default": { "provider": "ollama", "mode": "api_key" },
+      "xai:default": { "provider": "xai", "mode": "api_key" },
+      "openrouter:default": { "provider": "openrouter", "mode": "api_key" }
+    }
+  },
+  "models": {
+    "routingProfiles": {
+      "enhancedDefault": {
+        "defaultRoute": "everyday",
+        "routes": {
+          "coding": {
+            "primary": "openai-codex/gpt-5.3-codex",
+            "fallbacks": ["ollama/deepseek-v3.2:cloud", "ollama/kimi-k2.5:cloud", "openrouter/free"]
+          },
+          "everyday": {
+            "primary": "ollama/kimi-k2.5:cloud",
+            "fallbacks": ["ollama/deepseek-v3.2:cloud", "openrouter/free"]
+          },
+          "x": {
+            "primary": "xai/grok-3-fast-latest",
+            "fallbacks": [
+              "openai-codex/gpt-5.3-codex",
+              "ollama/deepseek-v3.2:cloud",
+              "openrouter/free"
+            ]
+          }
+        }
+      }
+    },
+    "providers": {
+      "ollama": {
+        "baseUrl": "https://api.ollama.ai/v1",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "kimi-k2.5:cloud",
+            "name": "Kimi K2.5 (Cloud)",
+            "reasoning": true,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 128000,
+            "maxTokens": 8192
+          },
+          {
+            "id": "deepseek-v3.2:cloud",
+            "name": "DeepSeek V3.2 (Cloud)",
+            "reasoning": true,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 128000,
+            "maxTokens": 8192
+          }
+        ]
+      },
+      "xai": {
+        "baseUrl": "https://api.x.ai/v1",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "grok-3-fast-latest",
+            "name": "Grok 3 Fast Latest",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 128000,
+            "maxTokens": 8192
+          }
+        ]
+      },
+      "openrouter": {
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "free",
+            "name": "OpenRouter Free",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 128000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "openai-codex/gpt-5.3-codex",
+        "fallbacks": ["ollama/deepseek-v3.2:cloud", "ollama/kimi-k2.5:cloud", "openrouter/free"]
+      },
+      "models": {
+        "openai-codex/gpt-5.3-codex": { "alias": "codex53" },
+        "ollama/kimi-k2.5:cloud": { "alias": "kimi-cloud" },
+        "ollama/deepseek-v3.2:cloud": { "alias": "deepseek-cloud" },
+        "xai/grok-3-fast-latest": { "alias": "grok-fast" },
+        "openrouter/free": { "alias": "free" }
+      },
+      "modelRouter": {
+        "enabled": true,
+        "defaultRoute": "everyday",
+        "routes": {
+          "coding": {
+            "primary": "openai-codex/gpt-5.3-codex",
+            "fallbacks": ["ollama/deepseek-v3.2:cloud", "ollama/kimi-k2.5:cloud", "openrouter/free"]
+          },
+          "everyday": {
+            "primary": "ollama/kimi-k2.5:cloud",
+            "fallbacks": ["ollama/deepseek-v3.2:cloud", "openrouter/free"]
+          },
+          "x": {
+            "primary": "xai/grok-3-fast-latest",
+            "fallbacks": [
+              "openai-codex/gpt-5.3-codex",
+              "ollama/deepseek-v3.2:cloud",
+              "openrouter/free"
+            ]
+          }
+        }
+      },
+      "multiAgent": {
+        "workspaceRoot": "./workspaces",
+        "artifactAutoPublishChars": 2000,
+        "delegation": {
+          "timeoutMs": 120000,
+          "maxDepth": 3,
+          "maxCallsPerTrace": 8,
+          "maxToolCalls": 24,
+          "dedupeWindowMs": 60000,
+          "pairRateLimitPerMinute": 6
+        }
+      }
+    },
+    "list": [
+      {
+        "id": "main",
+        "name": "Main",
+        "workspace": "./workspaces/agents/main",
+        "agentDir": "~/.openclaw/agents/main/agent"
+      },
+      {
+        "id": "admin",
+        "name": "Admin",
+        "workspace": "./workspaces/agents/admin",
+        "agentDir": "~/.openclaw/agents/admin/agent"
+      },
+      {
+        "id": "worker",
+        "name": "Worker",
+        "workspace": "./workspaces/agents/worker",
+        "agentDir": "~/.openclaw/agents/worker/agent"
+      },
+      {
+        "id": "social",
+        "name": "Social",
+        "workspace": "./workspaces/agents/social",
+        "agentDir": "~/.openclaw/agents/social/agent"
+      },
+      {
+        "id": "research",
+        "name": "Research",
+        "workspace": "./workspaces/agents/research",
+        "agentDir": "~/.openclaw/agents/research/agent"
+      }
+    ]
+  },
+  "bindings": [
+    { "agentId": "main", "match": { "channel": "webchat" } },
+    { "agentId": "social", "match": { "channel": "telegram", "accountId": "default" } },
+    { "agentId": "worker", "match": { "channel": "discord", "accountId": "default" } },
+    { "agentId": "research", "match": { "channel": "slack", "accountId": "default" } }
+  ],
+  "session": {
+    "dmScope": "per-account-channel-peer",
+    "identityLinks": {
+      "telegram:123456": ["discord:user-123", "slack:U123456"]
+    }
+  },
+  "skills": {
+    "bundles": {
+      "enhancedCore": ["coding-agent", "github", "session-logs", "healthcheck", "tmux"]
+    },
+    "entries": {
+      "coding-agent": { "enabled": true },
+      "github": { "enabled": true },
+      "session-logs": { "enabled": true },
+      "healthcheck": { "enabled": true },
+      "tmux": { "enabled": true }
+    }
+  },
+  "observability": {
+    "enabled": true,
+    "debug": false,
+    "redactionMode": "strict",
+    "audit": {
+      "enabled": true,
+      "dir": "./openclaw-data/audit",
+      "maxPayloadBytes": 262144,
+      "maxQueueSize": 10000
+    },
+    "spend": {
+      "enabled": true,
+      "dir": "./openclaw-data/spend",
+      "summaryPath": "./openclaw-data/spend/summary.json"
+    },
+    "health": {
+      "enabled": true,
+      "failureThreshold": 3,
+      "windowMs": 60000,
+      "openMs": 60000,
+      "emitIntervalMs": 30000
+    },
+    "stream": {
+      "enabled": true,
+      "replayWindowMs": 300000,
+      "serverMaxEventsPerSec": 50,
+      "serverMaxBufferedEvents": 10000,
+      "messageMaxBytes": 65536
+    }
+  }
+}

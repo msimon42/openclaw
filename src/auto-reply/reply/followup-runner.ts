@@ -119,6 +119,7 @@ export function createFollowupRunner(params: {
         registerAgentRunContext(runId, {
           sessionKey: queued.run.sessionKey,
           verboseLevel: queued.run.verboseLevel,
+          config: queued.run.config,
         });
       }
       let autoCompactionCompleted = false;
@@ -131,6 +132,15 @@ export function createFollowupRunner(params: {
           provider: queued.run.provider,
           model: queued.run.model,
           agentDir: queued.run.agentDir,
+          agentId: queued.run.agentId,
+          requestId: runId,
+          routerInput: {
+            message: queued.prompt,
+            channel: queued.run.messageProvider,
+            hasUrls:
+              /\bhttps?:\/\/\S+/i.test(queued.prompt) || /\bx\.com\/\S+/i.test(queued.prompt),
+            repoContext: "unknown",
+          },
           fallbacksOverride: resolveAgentModelFallbacksOverride(
             queued.run.config,
             resolveAgentIdFromSessionKey(queued.run.sessionKey),

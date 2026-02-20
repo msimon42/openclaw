@@ -445,6 +445,7 @@ export async function runCronIsolatedAgentTurn(params: {
     registerAgentRunContext(cronSession.sessionEntry.sessionId, {
       sessionKey: agentSessionKey,
       verboseLevel: resolvedVerboseLevel,
+      config: cfgWithAgentDefaults,
     });
     const messageChannel = resolvedDelivery.channel;
     const fallbackResult = await runWithModelFallback({
@@ -452,6 +453,14 @@ export async function runCronIsolatedAgentTurn(params: {
       provider,
       model,
       agentDir,
+      agentId,
+      requestId: cronSession.sessionEntry.sessionId,
+      routerInput: {
+        message: commandBody,
+        channel: resolvedDelivery.channel,
+        hasUrls: /\bhttps?:\/\/\S+/i.test(commandBody) || /\bx\.com\/\S+/i.test(commandBody),
+        repoContext: "unknown",
+      },
       fallbacksOverride: resolveAgentModelFallbacksOverride(params.cfg, agentId),
       run: (providerOverride, modelOverride) => {
         if (isCliProvider(providerOverride, cfgWithAgentDefaults)) {

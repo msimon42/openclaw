@@ -1,0 +1,17 @@
+{
+  "version": "phase5",
+  "routes": {
+    "coding": {
+      "primary": "openai-codex/gpt-5.3-codex",
+      "fallbacks": ["ollama/deepseek-v3.2:cloud", "ollama/kimi-k2.5:cloud", "openrouter/free"]
+    },
+    "everyday": {
+      "primary": "ollama/kimi-k2.5:cloud",
+      "fallbacks": ["ollama/deepseek-v3.2:cloud", "openrouter/free"]
+    },
+    "x": {
+      "primary": "xai/grok-3-fast-latest",
+      "fallbacks": ["openai-codex/gpt-5.3-codex", "ollama/deepseek-v3.2:cloud", "openrouter/free"]
+    }
+  }
+}

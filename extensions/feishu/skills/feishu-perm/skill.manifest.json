@@ -1,0 +1,7 @@
+{
+  "id": "feishu-perm",
+  "name": "feishu-perm",
+  "version": "1.0.0",
+  "entry": "SKILL.md",
+  "capabilities": ["model.invoke"]
+}

@@ -76,4 +76,6 @@ export type AgentCommandOpts = {
   inputProvenance?: InputProvenance;
   /** Per-call stream param overrides (best-effort). */
   streamParams?: AgentStreamParams;
+  /** Print model-router decision object for this run. */
+  modelRouterDebug?: boolean;
 };

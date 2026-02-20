@@ -20,6 +20,7 @@ type ResolvedAgentConfig = {
   agentDir?: string;
   model?: AgentEntry["model"];
   skills?: AgentEntry["skills"];
+  skillsPolicy?: AgentEntry["skillsPolicy"];
   memorySearch?: AgentEntry["memorySearch"];
   humanDelay?: AgentEntry["humanDelay"];
   heartbeat?: AgentEntry["heartbeat"];
@@ -114,6 +115,8 @@ export function resolveAgentConfig(
         ? entry.model
         : undefined,
     skills: Array.isArray(entry.skills) ? entry.skills : undefined,
+    skillsPolicy:
+      entry.skillsPolicy && typeof entry.skillsPolicy === "object" ? entry.skillsPolicy : undefined,
     memorySearch: entry.memorySearch,
     humanDelay: entry.humanDelay,
     heartbeat: entry.heartbeat,

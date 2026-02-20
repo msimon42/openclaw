@@ -944,7 +944,7 @@
               },
               {
                 "group": "Multi-agent",
-                "pages": ["concepts/multi-agent", "concepts/presence"]
+                "pages": ["concepts/multi-agent", "concepts/presence", "MULTI_AGENT_WORKFLOWS"]
               },
               {
                 "group": "Messages and delivery",
@@ -1045,7 +1045,11 @@
               },
               {
                 "group": "Configuration",
-                "pages": ["concepts/model-providers", "concepts/model-failover"]
+                "pages": [
+                  "concepts/model-providers",
+                  "concepts/model-failover",
+                  "phase-5-model-routing"
+                ]
               },
               {
                 "group": "Providers",

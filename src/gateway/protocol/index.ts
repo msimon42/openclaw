@@ -40,6 +40,10 @@ import {
   AgentsListParamsSchema,
   type AgentsListResult,
   AgentsListResultSchema,
+  AgentsMessageParamsSchema,
+  AgentsCallParamsSchema,
+  ArtifactsPublishParamsSchema,
+  ArtifactsFetchParamsSchema,
   type AgentWaitParams,
   AgentWaitParamsSchema,
   type ChannelsLogoutParams,
@@ -154,6 +158,14 @@ import {
   NodePairVerifyParamsSchema,
   type NodeRenameParams,
   NodeRenameParamsSchema,
+  type ObsFilter,
+  ObsFilterSchema,
+  type ObsPingParams,
+  ObsPingParamsSchema,
+  type ObsSubscribeParams,
+  ObsSubscribeParamsSchema,
+  type ObsUnsubscribeParams,
+  ObsUnsubscribeParamsSchema,
   type PollParams,
   PollParamsSchema,
   PROTOCOL_VERSION,
@@ -259,6 +271,10 @@ export const validateAgentsFilesGetParams = ajv.compile<AgentsFilesGetParams>(
 export const validateAgentsFilesSetParams = ajv.compile<AgentsFilesSetParams>(
   AgentsFilesSetParamsSchema,
 );
+export const validateAgentsMessageParams = ajv.compile(AgentsMessageParamsSchema);
+export const validateAgentsCallParams = ajv.compile(AgentsCallParamsSchema);
+export const validateArtifactsPublishParams = ajv.compile(ArtifactsPublishParamsSchema);
+export const validateArtifactsFetchParams = ajv.compile(ArtifactsFetchParamsSchema);
 export const validateNodePairRequestParams = ajv.compile<NodePairRequestParams>(
   NodePairRequestParamsSchema,
 );
@@ -367,6 +383,12 @@ export const validateExecApprovalsNodeSetParams = ajv.compile<ExecApprovalsNodeS
   ExecApprovalsNodeSetParamsSchema,
 );
 export const validateLogsTailParams = ajv.compile<LogsTailParams>(LogsTailParamsSchema);
+export const validateObsFilter = ajv.compile<ObsFilter>(ObsFilterSchema);
+export const validateObsSubscribeParams = ajv.compile<ObsSubscribeParams>(ObsSubscribeParamsSchema);
+export const validateObsUnsubscribeParams = ajv.compile<ObsUnsubscribeParams>(
+  ObsUnsubscribeParamsSchema,
+);
+export const validateObsPingParams = ajv.compile<ObsPingParams>(ObsPingParamsSchema);
 export const validateChatHistoryParams = ajv.compile(ChatHistoryParamsSchema);
 export const validateChatSendParams = ajv.compile(ChatSendParamsSchema);
 export const validateChatAbortParams = ajv.compile<ChatAbortParams>(ChatAbortParamsSchema);

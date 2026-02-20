@@ -29,6 +29,10 @@ export const TOOL_GROUPS: Record<string, string[]> = {
     "subagents",
     "session_status",
   ],
+  // Multi-agent delegation
+  "group:delegation": ["call_agent", "message_agent"],
+  // Shared artifact exchange
+  "group:artifacts": ["publish_artifact", "fetch_artifact"],
   // UI helpers
   "group:ui": ["browser", "canvas"],
   // Automation + infra
@@ -52,6 +56,10 @@ export const TOOL_GROUPS: Record<string, string[]> = {
     "sessions_spawn",
     "subagents",
     "session_status",
+    "call_agent",
+    "message_agent",
+    "publish_artifact",
+    "fetch_artifact",
     "memory_search",
     "memory_get",
     "web_search",

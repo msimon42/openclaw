@@ -291,6 +291,7 @@ export async function runEmbeddedAttempt(
     const toolsRaw = params.disableTools
       ? []
       : createOpenClawCodingTools({
+          runId: params.runId,
           exec: {
             ...params.execOverrides,
             elevated: params.bashElevated,
@@ -566,6 +567,7 @@ export async function runEmbeddedAttempt(
               clientToolCallDetected = { name: toolName, params: toolParams };
             },
             {
+              runId: params.runId,
               agentId: sessionAgentId,
               sessionKey: params.sessionKey,
               loopDetection: clientToolLoopDetection,

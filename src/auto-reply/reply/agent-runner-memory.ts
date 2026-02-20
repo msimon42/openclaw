@@ -86,6 +86,7 @@ export async function runMemoryFlushIfNeeded(params: {
     registerAgentRunContext(flushRunId, {
       sessionKey: params.sessionKey,
       verboseLevel: params.resolvedVerboseLevel,
+      config: params.followupRun.run.config,
     });
   }
   let memoryCompactionCompleted = false;
@@ -98,6 +99,8 @@ export async function runMemoryFlushIfNeeded(params: {
   try {
     await runWithModelFallback({
       ...resolveModelFallbackOptions(params.followupRun.run),
+      agentId: params.followupRun.run.agentId,
+      requestId: flushRunId,
       run: (provider, model) => {
         const { authProfile, embeddedContext, senderContext } = buildEmbeddedRunContexts({
           run: params.followupRun.run,

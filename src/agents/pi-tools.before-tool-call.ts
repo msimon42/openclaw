@@ -1,14 +1,21 @@
+import type { OpenClawConfig } from "../config/config.js";
+import { observeToolCallBlocked } from "../infra/observability.js";
 import type { ToolLoopDetectionConfig } from "../config/types.tools.js";
 import type { SessionState } from "../logging/diagnostic-session-state.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { isPlainObject } from "../utils.js";
+import { evaluateSkillToolCallAccess } from "./skills/security.js";
+import { loadWorkspaceSkillEntries } from "./skills/workspace.js";
 import { normalizeToolName } from "./tool-policy.js";
 import type { AnyAgentTool } from "./tools/common.js";
 
 export type HookContext = {
+  runId?: string;
   agentId?: string;
   sessionKey?: string;
+  config?: OpenClawConfig;
+  workspaceDir?: string;
   loopDetection?: ToolLoopDetectionConfig;
 };
 
@@ -71,6 +78,93 @@ async function recordLoopOutcome(args: {
   }
 }
 
+function emitBlockedEvent(args: {
+  toolName: string;
+  toolCallId?: string;
+  reason: string;
+  ctx?: HookContext;
+}) {
+  observeToolCallBlocked(
+    {
+      runId: args.ctx?.runId,
+      toolName: args.toolName,
+      toolCallId: args.toolCallId,
+      reason: args.reason,
+      agentId: args.ctx?.agentId,
+      sessionKey: args.ctx?.sessionKey,
+    },
+    args.ctx?.config,
+  );
+}
+
+function resolveSkillName(params: unknown): string | undefined {
+  if (!isPlainObject(params)) {
+    return undefined;
+  }
+  const skillName = params.skillName;
+  if (typeof skillName !== "string") {
+    return undefined;
+  }
+  const trimmed = skillName.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function resolveSkillSecurityDecision(args: {
+  toolName: string;
+  params: unknown;
+  ctx?: HookContext;
+}): HookOutcome | undefined {
+  const skillName = resolveSkillName(args.params);
+  if (!skillName) {
+    return undefined;
+  }
+  if (!args.ctx?.workspaceDir?.trim()) {
+    return {
+      blocked: true,
+      reason: `Skill runtime guard blocked tool call: workspace context missing for skill "${skillName}"`,
+    };
+  }
+  if (!args.ctx.config) {
+    return {
+      blocked: true,
+      reason: `Skill runtime guard blocked tool call: config context missing for skill "${skillName}"`,
+    };
+  }
+  const skillEntries = loadWorkspaceSkillEntries(args.ctx.workspaceDir, {
+    config: args.ctx.config,
+    agentId: args.ctx.agentId,
+  });
+  const entry = skillEntries.find(
+    (candidate) => candidate.skill.name.trim().toLowerCase() === skillName.toLowerCase(),
+  );
+  if (!entry) {
+    return {
+      blocked: true,
+      reason: `Skill runtime guard blocked tool call: skill "${skillName}" is not loadable`,
+    };
+  }
+  const policy = entry.security?.effectivePolicy;
+  if (!policy) {
+    return {
+      blocked: true,
+      reason: `Skill runtime guard blocked tool call: no effective policy for "${skillName}"`,
+    };
+  }
+  const decision = evaluateSkillToolCallAccess({
+    toolName: args.toolName,
+    toolParams: isPlainObject(args.params) ? args.params : {},
+    declaredCapabilities: entry.manifest?.capabilities ?? [],
+    policy,
+  });
+  if (decision.allowed) {
+    return undefined;
+  }
+  return {
+    blocked: true,
+    reason: `Skill runtime guard blocked tool call: ${decision.reason ?? "denied by policy"}`,
+  };
+}
+
 export async function runBeforeToolCallHook(args: {
   toolName: string;
   params: unknown;
@@ -79,6 +173,20 @@ export async function runBeforeToolCallHook(args: {
 }): Promise<HookOutcome> {
   const toolName = normalizeToolName(args.toolName || "tool");
   const params = args.params;
+  const securityDecision = resolveSkillSecurityDecision({
+    toolName,
+    params,
+    ctx: args.ctx,
+  });
+  if (securityDecision?.blocked) {
+    emitBlockedEvent({
+      toolName,
+      toolCallId: args.toolCallId,
+      reason: securityDecision.reason,
+      ctx: args.ctx,
+    });
+    return securityDecision;
+  }
 
   if (args.ctx?.sessionKey) {
     const { getDiagnosticSessionState } = await import("../logging/diagnostic-session-state.js");
@@ -152,6 +260,12 @@ export async function runBeforeToolCallHook(args: {
     );
 
     if (hookResult?.block) {
+      emitBlockedEvent({
+        toolName,
+        toolCallId: args.toolCallId,
+        reason: hookResult.blockReason || "Tool call blocked by plugin hook",
+        ctx: args.ctx,
+      });
       return {
         blocked: true,
         reason: hookResult.blockReason || "Tool call blocked by plugin hook",

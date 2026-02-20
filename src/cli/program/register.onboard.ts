@@ -54,8 +54,15 @@ export function registerOnboardCommand(program: Command) {
         `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/onboard", "docs.openclaw.ai/cli/onboard")}\n`,
     )
     .option("--workspace <dir>", "Agent workspace directory (default: ~/.openclaw/workspace)")
+    .option("--profile <profile>", "Setup profile: standard|enhanced")
     .option("--reset", "Reset config + credentials + sessions + workspace before running wizard")
+    .option("--force", "Allow destructive reset/overwrite during onboarding", false)
     .option("--non-interactive", "Run without prompts", false)
+    .option(
+      "--skip-auth-check",
+      "Skip enhanced auth preflight checks in non-interactive mode",
+      false,
+    )
     .option(
       "--accept-risk",
       "Acknowledge that agents are powerful and full system access is risky (required for --non-interactive)",
@@ -120,7 +127,10 @@ export function registerOnboardCommand(program: Command) {
       await onboardCommand(
         {
           workspace: opts.workspace as string | undefined,
+          profile: opts.profile as "standard" | "enhanced" | undefined,
           nonInteractive: Boolean(opts.nonInteractive),
+          skipAuthCheck: Boolean(opts.skipAuthCheck),
+          forceReset: Boolean(opts.force),
           acceptRisk: Boolean(opts.acceptRisk),
           flow: opts.flow as "quickstart" | "advanced" | "manual" | undefined,
           mode: opts.mode as "local" | "remote" | undefined,

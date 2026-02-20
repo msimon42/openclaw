@@ -214,6 +214,16 @@ const ToolPolicyBaseSchema = z
   })
   .strict();
 
+export const SkillPolicySchema = z
+  .object({
+    allow: z.array(z.string()).optional(),
+    deny: z.array(z.string()).optional(),
+    allowDomains: z.array(z.string()).optional(),
+    writePaths: z.array(z.string()).optional(),
+    requireApproval: z.boolean().optional(),
+  })
+  .strict();
+
 export const ToolPolicySchema = ToolPolicyBaseSchema.superRefine((value, ctx) => {
   if (value.allow && value.allow.length > 0 && value.alsoAllow && value.alsoAllow.length > 0) {
     ctx.addIssue({
@@ -589,6 +599,7 @@ export const AgentEntrySchema = z
     agentDir: z.string().optional(),
     model: AgentModelSchema.optional(),
     skills: z.array(z.string()).optional(),
+    skillsPolicy: SkillPolicySchema.optional(),
     memorySearch: MemorySearchSchema,
     humanDelay: HumanDelaySchema.optional(),
     heartbeat: HeartbeatSchema,

@@ -251,6 +251,24 @@ const entries: SubCliEntry[] = [
     },
   },
   {
+    name: "obs",
+    description: "Observability tools",
+    hasSubcommands: false,
+    register: async (program) => {
+      const mod = await import("../obs-cli.js");
+      mod.registerObsCli(program);
+    },
+  },
+  {
+    name: "spend",
+    description: "Spend reports",
+    hasSubcommands: false,
+    register: async (program) => {
+      const mod = await import("../spend-cli.js");
+      mod.registerSpendCli(program);
+    },
+  },
+  {
     name: "security",
     description: "Security tools and local config audits",
     hasSubcommands: true,

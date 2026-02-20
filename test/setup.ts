@@ -2,6 +2,10 @@ import { afterAll, afterEach, beforeEach, vi } from "vitest";
 
 // Ensure Vitest environment is properly set
 process.env.VITEST = "true";
+if (!(globalThis as Record<string, unknown>).File) {
+  // Node <20 does not expose File globally; undici expects it in test envs.
+  (globalThis as Record<string, unknown>).File = Blob;
+}
 // Config validation walks plugin manifests; keep an aggressive cache in tests to avoid
 // repeated filesystem discovery across suites/workers.
 process.env.OPENCLAW_PLUGIN_MANIFEST_CACHE_MS ??= "60000";

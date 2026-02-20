@@ -25,7 +25,7 @@ import {
 } from "../utils.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { VERSION } from "../version.js";
-import type { NodeManagerChoice, OnboardMode, ResetScope } from "./onboard-types.js";
+import type { NodeManagerChoice, OnboardMode, OnboardProfile, ResetScope } from "./onboard-types.js";
 
 export function guardCancel<T>(value: T | symbol, runtime: RuntimeEnv): T {
   if (isCancel(value)) {
@@ -112,7 +112,7 @@ export function printWizardHeader(runtime: RuntimeEnv) {
 
 export function applyWizardMetadata(
   cfg: OpenClawConfig,
-  params: { command: string; mode: OnboardMode },
+  params: { command: string; mode: OnboardMode; profile?: OnboardProfile },
 ): OpenClawConfig {
   const commit = process.env.GIT_COMMIT?.trim() || process.env.GIT_SHA?.trim() || undefined;
   return {
@@ -120,6 +120,7 @@ export function applyWizardMetadata(
     wizard: {
       ...cfg.wizard,
       lastRunAt: new Date().toISOString(),
+      lastRunProfile: params.profile ?? cfg.wizard?.lastRunProfile,
       lastRunVersion: VERSION,
       lastRunCommit: commit,
       lastRunCommand: params.command,

@@ -18,6 +18,8 @@ type SkillFixture = {
   metadata?: string;
   body?: string;
   frontmatterExtra?: string;
+  writeManifest?: boolean;
+  manifestCapabilities?: string[];
 };
 
 const tempDirs: string[] = [];
@@ -29,7 +31,16 @@ const makeWorkspace = async () => {
 };
 
 const writeSkill = async (params: SkillFixture) => {
-  const { dir, name, description, metadata, body, frontmatterExtra } = params;
+  const {
+    dir,
+    name,
+    description,
+    metadata,
+    body,
+    frontmatterExtra,
+    writeManifest = true,
+    manifestCapabilities = ["model.invoke"],
+  } = params;
   await fs.mkdir(dir, { recursive: true });
   const frontmatter = [
     `name: ${name}`,
@@ -42,6 +53,24 @@ const writeSkill = async (params: SkillFixture) => {
   await fs.writeFile(
     path.join(dir, "SKILL.md"),
     `---\n${frontmatter}\n---\n\n${body ?? `# ${name}\n`}`,
+    "utf-8",
+  );
+  if (!writeManifest) {
+    return;
+  }
+  await fs.writeFile(
+    path.join(dir, "skill.manifest.json"),
+    JSON.stringify(
+      {
+        id: name,
+        name,
+        version: "1.0.0",
+        entry: "SKILL.md",
+        capabilities: manifestCapabilities,
+      },
+      null,
+      2,
+    ),
     "utf-8",
   );
 };

@@ -21,6 +21,7 @@ import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
+import { loadInbox } from "./controllers/inbox.ts";
 import {
   inferBasePathFromPathname,
   normalizeBasePath,
@@ -60,6 +61,7 @@ export function applySettings(host: SettingsHost, next: UiSettings) {
   const normalized = {
     ...next,
     lastActiveSessionKey: next.lastActiveSessionKey?.trim() || next.sessionKey.trim() || "main",
+    selectedAgentId: next.selectedAgentId?.trim() || host.settings.selectedAgentId || "main",
   };
   host.settings = normalized;
   saveSettings(normalized);
@@ -244,6 +246,13 @@ export async function refreshActiveTab(host: SettingsHost) {
     host.logsAtBottom = true;
     await loadLogs(host as unknown as OpenClawApp, { reset: true });
     scheduleLogsScroll(host as unknown as Parameters<typeof scheduleLogsScroll>[0], true);
+  }
+  if (host.tab === "inbox") {
+    await loadAgents(host as unknown as OpenClawApp);
+    await loadInbox(host as unknown as Parameters<typeof loadInbox>[0]);
+  }
+  if (host.tab === "delegation") {
+    await loadAgents(host as unknown as OpenClawApp);
   }
 }
 

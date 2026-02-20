@@ -60,8 +60,24 @@ export type BedrockDiscoveryConfig = {
   defaultMaxTokens?: number;
 };
 
+export type ModelRoutingProfileRouteConfig = {
+  primary?: string;
+  fallbacks?: string[];
+};
+
+export type ModelRoutingProfileConfig = {
+  defaultRoute?: "coding" | "everyday" | "x";
+  disabledProviders?: string[];
+  routes?: {
+    coding?: ModelRoutingProfileRouteConfig;
+    everyday?: ModelRoutingProfileRouteConfig;
+    x?: ModelRoutingProfileRouteConfig;
+  };
+};
+
 export type ModelsConfig = {
   mode?: "merge" | "replace";
   providers?: Record<string, ModelProviderConfig>;
   bedrockDiscovery?: BedrockDiscoveryConfig;
+  routingProfiles?: Record<string, ModelRoutingProfileConfig>;
 };

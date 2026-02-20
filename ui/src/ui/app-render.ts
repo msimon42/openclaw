@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import type { ObsEventRecord } from "../../../src/observability/stream-protocol.js";
 import { parseAgentSessionKey } from "../../../src/routing/session-key.js";
 import { t } from "../i18n/index.ts";
 import { refreshChatAvatar } from "./app-chat.ts";
@@ -41,6 +42,7 @@ import {
   saveExecApprovals,
   updateExecApprovalsFormValue,
 } from "./controllers/exec-approvals.ts";
+import { callWorkerFromInbox, loadInbox, promoteInboxMessage } from "./controllers/inbox.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
@@ -60,17 +62,22 @@ import { renderChat } from "./views/chat.ts";
 import { renderConfig } from "./views/config.ts";
 import { renderCron } from "./views/cron.ts";
 import { renderDebug } from "./views/debug.ts";
+import { renderDelegationActivity } from "./views/delegation-activity.ts";
 import { renderExecApprovalPrompt } from "./views/exec-approval.ts";
 import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation.ts";
+import { renderInbox } from "./views/inbox.ts";
 import { renderInstances } from "./views/instances.ts";
 import { renderLogs } from "./views/logs.ts";
 import { renderNodes } from "./views/nodes.ts";
+import { renderObservability } from "./views/observability.ts";
+import { renderOnboardingWizard } from "./views/onboarding-wizard.ts";
 import { renderOverview } from "./views/overview.ts";
 import { renderSessions } from "./views/sessions.ts";
 import { renderSkills } from "./views/skills.ts";
 
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
+const DELEGATION_EVENT_RE = /^agent\.call(?:\.|$)|^agent\.message$|^artifact\./;
 
 function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   const list = state.agentsList?.agents ?? [];
@@ -88,6 +95,37 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   return identity?.avatarUrl;
 }
 
+type DelegationPayload = {
+  fromAgentId?: unknown;
+  toAgentId?: unknown;
+};
+
+function resolvePayloadAgentId(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function filterDelegationEventsForAgent(
+  events: ObsEventRecord[],
+  selectedAgentId: string | null,
+): ObsEventRecord[] {
+  return events.filter((entry) => {
+    if (!DELEGATION_EVENT_RE.test(entry.eventType)) {
+      return false;
+    }
+    if (!selectedAgentId) {
+      return true;
+    }
+    const payload = (entry.payload ?? {}) as DelegationPayload;
+    const fromAgentId = resolvePayloadAgentId(payload.fromAgentId);
+    const toAgentId = resolvePayloadAgentId(payload.toAgentId);
+    return (
+      entry.agentId === selectedAgentId ||
+      fromAgentId === selectedAgentId ||
+      toAgentId === selectedAgentId
+    );
+  });
+}
+
 export function renderApp(state: AppViewState) {
   const presenceCount = state.presenceEntries.length;
   const sessionsCount = state.sessionsResult?.count ?? null;
@@ -102,10 +140,49 @@ export function renderApp(state: AppViewState) {
     state.configForm ?? (state.configSnapshot?.config as Record<string, unknown> | null);
   const basePath = normalizeBasePath(state.basePath ?? "");
   const resolvedAgentId =
+    state.settings.selectedAgentId ??
     state.agentsSelectedId ??
     state.agentsList?.defaultId ??
     state.agentsList?.agents?.[0]?.id ??
     null;
+  const obsRenderVersion = state.observabilityRenderVersion;
+  void obsRenderVersion;
+  const obsStore = state.observabilityStream.getStore();
+  const obsStatus = state.observabilityStream.getStatus();
+  const obsEvents = obsStore.getFilteredEvents(state.observabilityFilter);
+  const obsAllEvents = obsStore.getAllEvents();
+  const obsSelectedEvent = obsEvents.find(
+    (entry) => entry.eventId === state.observabilitySelectedEventId,
+  );
+  const obsTraceEvents = obsSelectedEvent ? obsStore.getTrace(obsSelectedEvent.traceId) : [];
+  const obsDerivedSpend = obsStore.deriveSpend(state.observabilitySpendWindow);
+  const obsFallbacks = obsStore.deriveFallbackCounts(state.observabilitySpendWindow);
+  const obsHealthSummary = obsStore.getHealth();
+  const availableAgents = Array.from(
+    new Set(obsAllEvents.map((entry) => entry.agentId)),
+  ).toSorted();
+  const availableEventTypes = Array.from(
+    new Set(obsAllEvents.map((entry) => entry.eventType)),
+  ).toSorted();
+  const availableModelRefs = Array.from(
+    new Set(
+      obsAllEvents
+        .flatMap((entry) => [
+          entry.model?.modelRef,
+          entry.model?.fromModelRef,
+          entry.model?.toModelRef,
+        ])
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0),
+    ),
+  ).toSorted();
+  const availableRiskTiers = Array.from(
+    new Set(
+      obsAllEvents
+        .map((entry) => entry.riskTier)
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0),
+    ),
+  ).toSorted();
+  const delegationEvents = filterDelegationEventsForAgent(obsAllEvents, resolvedAgentId);
 
   return html`
     <div class="shell ${isChat ? "shell--chat" : ""} ${chatFocus ? "shell--chat-focus" : ""} ${state.settings.navCollapsed ? "shell--nav-collapsed" : ""} ${state.onboarding ? "shell--onboarding" : ""}">
@@ -139,6 +216,28 @@ export function renderApp(state: AppViewState) {
             <span>${t("common.health")}</span>
             <span class="mono">${state.connected ? t("common.ok") : t("common.offline")}</span>
           </div>
+          <label class="agent-selector">
+            <span class="muted">Agent</span>
+            <select
+              .value=${resolvedAgentId ?? ""}
+              @change=${async (event: Event) => {
+                const next = (event.target as HTMLSelectElement).value;
+                state.agentsSelectedId = next || null;
+                state.applySettings({
+                  ...state.settings,
+                  selectedAgentId: next || state.settings.selectedAgentId,
+                });
+                if (state.tab === "inbox") {
+                  await loadInbox(state);
+                }
+              }}
+            >
+              ${(state.agentsList?.agents ?? []).map(
+                (agent) =>
+                  html`<option value=${agent.id}>${agent.displayName ?? agent.name ?? agent.id}</option>`,
+              )}
+            </select>
+          </label>
           ${renderThemeToggle(state)}
         </div>
       </header>
@@ -198,6 +297,72 @@ export function renderApp(state: AppViewState) {
             ${isChat ? renderChatControls(state) : nothing}
           </div>
         </section>
+
+        ${
+          state.tab === "onboarding"
+            ? renderOnboardingWizard({
+                connected: state.connected,
+                starting: state.wizardStarting,
+                advancing: state.wizardAdvancing,
+                sessionId: state.wizardSessionId,
+                status: state.wizardStatus,
+                error: state.wizardError,
+                step: state.wizardStep,
+                startMode: state.wizardStartMode,
+                startProfile: state.wizardStartProfile,
+                startNonInteractive: state.wizardStartNonInteractive,
+                startForceReset: state.wizardStartForceReset,
+                answerText: state.wizardAnswerText,
+                answerConfirm: state.wizardAnswerConfirm,
+                answerValue: state.wizardAnswerValue,
+                answerMultiValues: state.wizardAnswerMultiValues,
+                onStart: () => {
+                  void state.handleWizardStart();
+                },
+                onSubmit: () => {
+                  void state.handleWizardSubmit();
+                },
+                onCancel: () => {
+                  void state.handleWizardCancel();
+                },
+                onStartModeChange: (value) => {
+                  state.wizardStartMode = value;
+                },
+                onStartProfileChange: (value) => {
+                  state.wizardStartProfile = value;
+                },
+                onStartNonInteractiveChange: (value) => {
+                  state.wizardStartNonInteractive = value;
+                },
+                onStartForceResetChange: (value) => {
+                  state.wizardStartForceReset = value;
+                },
+                onAnswerTextChange: (value) => {
+                  state.wizardAnswerText = value;
+                },
+                onAnswerConfirmChange: (value) => {
+                  state.wizardAnswerConfirm = value;
+                },
+                onAnswerValueChange: (value) => {
+                  state.wizardAnswerValue = value;
+                },
+                onAnswerMultiToggle: (value, checked) => {
+                  const hasValue = state.wizardAnswerMultiValues.some(
+                    (entry) => JSON.stringify(entry) === JSON.stringify(value),
+                  );
+                  if (checked && !hasValue) {
+                    state.wizardAnswerMultiValues = [...state.wizardAnswerMultiValues, value];
+                    return;
+                  }
+                  if (!checked && hasValue) {
+                    state.wizardAnswerMultiValues = state.wizardAnswerMultiValues.filter(
+                      (entry) => JSON.stringify(entry) !== JSON.stringify(value),
+                    );
+                  }
+                },
+              })
+            : nothing
+        }
 
         ${
           state.tab === "overview"
@@ -306,7 +471,71 @@ export function renderApp(state: AppViewState) {
             : nothing
         }
 
+        ${
+          state.tab === "inbox"
+            ? renderInbox({
+                loading: state.inboxLoading,
+                error: state.inboxError,
+                sessionKey: state.inboxSessionKey,
+                messages: state.inboxMessages,
+                workerAgentId: state.inboxWorkerAgentId,
+                actionStatus: state.inboxActionStatus,
+                onRefresh: () => loadInbox(state),
+                onPromote: (message) => {
+                  void promoteInboxMessage(state, message);
+                },
+                onCallWorker: (message) => {
+                  void callWorkerFromInbox(state, message);
+                },
+                onWorkerAgentChange: (next) => {
+                  state.inboxWorkerAgentId = next.trim();
+                },
+              })
+            : nothing
+        }
+
+        ${
+          state.tab === "delegation"
+            ? renderDelegationActivity({
+                events: delegationEvents,
+                traceFilter: state.delegationTraceFilter,
+                onTraceFilterChange: (next) => {
+                  state.delegationTraceFilter = next;
+                },
+              })
+            : nothing
+        }
+
         ${renderUsageTab(state)}
+
+        ${
+          state.tab === "observability"
+            ? renderObservability({
+                connected: state.connected,
+                status: obsStatus,
+                section: state.observabilitySection,
+                onSectionChange: (next) => (state.observabilitySection = next),
+                filter: state.observabilityFilter,
+                onFilterChange: (next) => {
+                  state.observabilityFilter = next;
+                  state.observabilityStream.setFilters(next);
+                },
+                availableAgents,
+                availableEventTypes,
+                availableModelRefs,
+                availableRiskTiers,
+                events: obsEvents,
+                selectedEventId: state.observabilitySelectedEventId,
+                onSelectEvent: (eventId) => (state.observabilitySelectedEventId = eventId),
+                traceEvents: obsTraceEvents,
+                spendWindow: state.observabilitySpendWindow,
+                onSpendWindowChange: (next) => (state.observabilitySpendWindow = next),
+                derivedSpend: obsDerivedSpend,
+                fallbackCounts: obsFallbacks,
+                healthSummary: obsHealthSummary,
+              })
+            : nothing
+        }
 
         ${
           state.tab === "cron"

@@ -1,5 +1,7 @@
 import { LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import type { AuditFilterState, SpendWindow } from "../services/observability-store.ts";
+import { ObservabilityStreamService } from "../services/observability-stream.ts";
 import { i18n, I18nController, isSupportedLocale } from "../i18n/index.ts";
 import {
   handleChannelConfigReload as handleChannelConfigReloadInternal,
@@ -116,6 +118,30 @@ export class OpenClawApp extends LitElement {
   @state() password = "";
   @state() tab: Tab = "chat";
   @state() onboarding = resolveOnboardingMode();
+  @state() wizardStarting = false;
+  @state() wizardAdvancing = false;
+  @state() wizardSessionId: string | null = null;
+  @state() wizardStatus: "idle" | "running" | "done" | "cancelled" | "error" = "idle";
+  @state() wizardError: string | null = null;
+  @state() wizardStep: {
+    id: string;
+    type: "note" | "select" | "text" | "confirm" | "multiselect" | "progress" | "action";
+    title?: string;
+    message?: string;
+    options?: Array<{ value: unknown; label: string; hint?: string }>;
+    initialValue?: unknown;
+    placeholder?: string;
+    sensitive?: boolean;
+    executor?: "gateway" | "client";
+  } | null = null;
+  @state() wizardStartMode: "local" | "remote" = "local";
+  @state() wizardStartProfile: "standard" | "enhanced" = "standard";
+  @state() wizardStartNonInteractive = false;
+  @state() wizardStartForceReset = false;
+  @state() wizardAnswerText = "";
+  @state() wizardAnswerConfirm = false;
+  @state() wizardAnswerValue: unknown = null;
+  @state() wizardAnswerMultiValues: unknown[] = [];
   @state() connected = false;
   @state() theme: ThemeMode = this.settings.theme ?? "system";
   @state() themeResolved: ResolvedTheme = "dark";
@@ -210,7 +236,7 @@ export class OpenClawApp extends LitElement {
   @state() agentsLoading = false;
   @state() agentsList: AgentsListResult | null = null;
   @state() agentsError: string | null = null;
-  @state() agentsSelectedId: string | null = null;
+  @state() agentsSelectedId: string | null = this.settings.selectedAgentId ?? null;
   @state() agentsPanel: "overview" | "files" | "tools" | "skills" | "channels" | "cron" =
     "overview";
   @state() agentFilesLoading = false;
@@ -235,6 +261,13 @@ export class OpenClawApp extends LitElement {
   @state() sessionsFilterLimit = "120";
   @state() sessionsIncludeGlobal = true;
   @state() sessionsIncludeUnknown = false;
+  @state() inboxLoading = false;
+  @state() inboxError: string | null = null;
+  @state() inboxSessionKey: string | null = null;
+  @state() inboxMessages: unknown[] = [];
+  @state() inboxWorkerAgentId = "worker";
+  @state() inboxActionStatus: string | null = null;
+  @state() inboxLastCallResult: unknown = null;
 
   @state() usageLoading = false;
   @state() usageResult: import("./types.js").SessionsUsageResult | null = null;
@@ -333,8 +366,19 @@ export class OpenClawApp extends LitElement {
   @state() logsLimit = 500;
   @state() logsMaxBytes = 250_000;
   @state() logsAtBottom = true;
+  @state() observabilitySection: "audit" | "spend" | "health" = "audit";
+  @state() observabilityFilter: AuditFilterState = {};
+  @state() observabilitySelectedEventId: string | null = null;
+  @state() observabilitySpendWindow: SpendWindow = "15m";
+  @state() delegationTraceFilter = "";
+  @state() observabilityRenderVersion = 0;
 
   client: GatewayBrowserClient | null = null;
+  observabilityStream = new ObservabilityStreamService({
+    onUpdate: () => {
+      this.observabilityRenderVersion += 1;
+    },
+  });
   private chatScrollFrame: number | null = null;
   private chatScrollTimeout: number | null = null;
   private chatHasAutoScrolled = false;
@@ -378,6 +422,203 @@ export class OpenClawApp extends LitElement {
 
   connect() {
     connectGatewayInternal(this as unknown as Parameters<typeof connectGatewayInternal>[0]);
+  }
+
+  private normalizeWizardStep(step: unknown): OpenClawApp["wizardStep"] {
+    if (!step || typeof step !== "object") {
+      return null;
+    }
+    const raw = step as Record<string, unknown>;
+    const id = typeof raw.id === "string" ? raw.id : null;
+    const type =
+      raw.type === "note" ||
+      raw.type === "select" ||
+      raw.type === "text" ||
+      raw.type === "confirm" ||
+      raw.type === "multiselect" ||
+      raw.type === "progress" ||
+      raw.type === "action"
+        ? raw.type
+        : null;
+    if (!id || !type) {
+      return null;
+    }
+    const options = Array.isArray(raw.options)
+      ? raw.options.reduce<Array<{ value: unknown; label: string; hint?: string }>>(
+          (acc, entry) => {
+            if (!entry || typeof entry !== "object") {
+              return acc;
+            }
+            const option = entry as Record<string, unknown>;
+            if (typeof option.label !== "string") {
+              return acc;
+            }
+            acc.push({
+              value: option.value,
+              label: option.label,
+              hint: typeof option.hint === "string" ? option.hint : undefined,
+            });
+            return acc;
+          },
+          [],
+        )
+      : undefined;
+    return {
+      id,
+      type,
+      title: typeof raw.title === "string" ? raw.title : undefined,
+      message: typeof raw.message === "string" ? raw.message : undefined,
+      options,
+      initialValue: raw.initialValue,
+      placeholder: typeof raw.placeholder === "string" ? raw.placeholder : undefined,
+      sensitive: raw.sensitive === true,
+      executor: raw.executor === "gateway" || raw.executor === "client" ? raw.executor : undefined,
+    };
+  }
+
+  private primeWizardAnswer(step: OpenClawApp["wizardStep"]) {
+    if (!step) {
+      this.wizardAnswerText = "";
+      this.wizardAnswerConfirm = false;
+      this.wizardAnswerValue = null;
+      this.wizardAnswerMultiValues = [];
+      return;
+    }
+    const stringifyInitialValue = (value: unknown): string => {
+      if (typeof value === "string") {
+        return value;
+      }
+      if (value === undefined || value === null) {
+        return "";
+      }
+      if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+        return String(value);
+      }
+      try {
+        return JSON.stringify(value) ?? "";
+      } catch {
+        return "";
+      }
+    };
+    this.wizardAnswerText = stringifyInitialValue(step.initialValue);
+    this.wizardAnswerConfirm = step.initialValue === true;
+    this.wizardAnswerValue = step.initialValue ?? step.options?.[0]?.value ?? null;
+    this.wizardAnswerMultiValues = Array.isArray(step.initialValue) ? step.initialValue : [];
+  }
+
+  private resolveWizardAnswerValue(): unknown {
+    if (!this.wizardStep) {
+      return null;
+    }
+    if (this.wizardStep.type === "text") {
+      return this.wizardAnswerText;
+    }
+    if (this.wizardStep.type === "confirm") {
+      return this.wizardAnswerConfirm;
+    }
+    if (this.wizardStep.type === "select") {
+      return this.wizardAnswerValue;
+    }
+    if (this.wizardStep.type === "multiselect") {
+      return this.wizardAnswerMultiValues;
+    }
+    return null;
+  }
+
+  async handleWizardStart() {
+    if (!this.client || this.wizardStarting) {
+      return;
+    }
+    this.wizardStarting = true;
+    this.wizardError = null;
+    try {
+      const start = await this.client.request<{
+        sessionId?: string;
+        done?: boolean;
+        status?: "running" | "done" | "cancelled" | "error";
+        step?: unknown;
+        error?: string;
+      }>("wizard.start", {
+        mode: this.wizardStartMode,
+        profile: this.wizardStartProfile,
+        nonInteractive: this.wizardStartNonInteractive,
+        forceReset: this.wizardStartForceReset,
+      });
+
+      this.wizardSessionId = typeof start.sessionId === "string" ? start.sessionId : null;
+      this.wizardStatus = start.status ?? "running";
+      this.wizardStep = this.normalizeWizardStep(start.step);
+      this.primeWizardAnswer(this.wizardStep);
+      if (start.done || this.wizardStatus !== "running") {
+        this.wizardSessionId = null;
+      }
+      this.wizardError = start.error ?? null;
+    } catch (err) {
+      this.wizardError = `wizard.start failed: ${String(err)}`;
+      this.wizardStatus = "error";
+    } finally {
+      this.wizardStarting = false;
+    }
+  }
+
+  async handleWizardSubmit() {
+    if (!this.client || !this.wizardSessionId || !this.wizardStep || this.wizardAdvancing) {
+      return;
+    }
+    this.wizardAdvancing = true;
+    this.wizardError = null;
+    try {
+      const next = await this.client.request<{
+        done?: boolean;
+        status?: "running" | "done" | "cancelled" | "error";
+        step?: unknown;
+        error?: string;
+      }>("wizard.next", {
+        sessionId: this.wizardSessionId,
+        answer: {
+          stepId: this.wizardStep.id,
+          value: this.resolveWizardAnswerValue(),
+        },
+      });
+      this.wizardStatus = next.status ?? "running";
+      this.wizardStep = this.normalizeWizardStep(next.step);
+      this.primeWizardAnswer(this.wizardStep);
+      if (next.done || this.wizardStatus !== "running") {
+        this.wizardSessionId = null;
+      }
+      this.wizardError = next.error ?? null;
+    } catch (err) {
+      this.wizardError = `wizard.next failed: ${String(err)}`;
+      this.wizardStatus = "error";
+    } finally {
+      this.wizardAdvancing = false;
+    }
+  }
+
+  async handleWizardCancel() {
+    if (!this.client || !this.wizardSessionId) {
+      return;
+    }
+    this.wizardAdvancing = true;
+    this.wizardError = null;
+    try {
+      const result = await this.client.request<{
+        status?: "running" | "done" | "cancelled" | "error";
+        error?: string;
+      }>("wizard.cancel", {
+        sessionId: this.wizardSessionId,
+      });
+      this.wizardStatus = result.status ?? "cancelled";
+      this.wizardError = result.error ?? null;
+      this.wizardSessionId = null;
+      this.wizardStep = null;
+      this.primeWizardAnswer(null);
+    } catch (err) {
+      this.wizardError = `wizard.cancel failed: ${String(err)}`;
+      this.wizardStatus = "error";
+    } finally {
+      this.wizardAdvancing = false;
+    }
   }
 
   handleChatScroll(event: Event) {

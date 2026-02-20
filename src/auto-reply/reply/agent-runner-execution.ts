@@ -94,6 +94,7 @@ export async function runAgentTurnWithFallback(params: {
       sessionKey: params.sessionKey,
       verboseLevel: params.resolvedVerboseLevel,
       isHeartbeat: params.isHeartbeat,
+      config: params.followupRun.run.config,
     });
   }
   let runResult: Awaited<ReturnType<typeof runEmbeddedPiAgent>>;
@@ -155,6 +156,19 @@ export async function runAgentTurnWithFallback(params: {
       const onToolResult = params.opts?.onToolResult;
       const fallbackResult = await runWithModelFallback({
         ...resolveModelFallbackOptions(params.followupRun.run),
+        agentId: params.followupRun.run.agentId,
+        requestId: runId,
+        routerInput: {
+          message: params.commandBody,
+          channel:
+            params.followupRun.run.messageProvider ??
+            params.sessionCtx.Provider?.trim().toLowerCase() ??
+            undefined,
+          hasUrls:
+            /\bhttps?:\/\/\S+/i.test(params.commandBody) ||
+            /\bx\.com\/\S+/i.test(params.commandBody),
+          repoContext: "unknown",
+        },
         run: (provider, model) => {
           // Notify that model selection is complete (including after fallback).
           // This allows responsePrefix template interpolation with the actual model.

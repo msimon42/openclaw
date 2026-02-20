@@ -52,6 +52,7 @@ export type AgentCliOpts = {
   runId?: string;
   extraSystemPrompt?: string;
   local?: boolean;
+  modelRouterDebug?: boolean;
 };
 
 function parseTimeoutSeconds(opts: { cfg: ReturnType<typeof loadConfig>; timeout?: string }) {
@@ -145,6 +146,7 @@ export async function agentViaGatewayCommand(opts: AgentCliOpts, runtime: Runtim
           timeout: timeoutSeconds,
           lane: opts.lane,
           extraSystemPrompt: opts.extraSystemPrompt,
+          modelRouterDebug: opts.modelRouterDebug === true,
           idempotencyKey,
         },
         expectFinal: true,

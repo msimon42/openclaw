@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ToolsSchema } from "./zod-schema.agent-runtime.js";
+import { SkillPolicySchema, ToolsSchema } from "./zod-schema.agent-runtime.js";
 import { AgentsSchema, AudioSchema, BindingsSchema, BroadcastSchema } from "./zod-schema.agents.js";
 import { ApprovalsSchema } from "./zod-schema.approvals.js";
 import { HexColorSchema, ModelsConfigSchema } from "./zod-schema.core.js";
@@ -102,6 +102,65 @@ const HttpUrlSchema = z
     return protocol === "http:" || protocol === "https:";
   }, "Expected http:// or https:// URL");
 
+const ObservabilityPricingSchema = z
+  .record(
+    z.string(),
+    z
+      .object({
+        inputPer1kUsd: z.number().nonnegative().optional(),
+        outputPer1kUsd: z.number().nonnegative().optional(),
+      })
+      .strict(),
+  )
+  .optional();
+
+const ObservabilitySchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    debug: z.boolean().optional(),
+    redactionMode: z.union([z.literal("strict"), z.literal("debug")]).optional(),
+    audit: z
+      .object({
+        enabled: z.boolean().optional(),
+        dir: z.string().optional(),
+        maxPayloadBytes: z.number().int().positive().optional(),
+        maxQueueSize: z.number().int().positive().optional(),
+      })
+      .strict()
+      .optional(),
+    spend: z
+      .object({
+        enabled: z.boolean().optional(),
+        dir: z.string().optional(),
+        summaryPath: z.string().optional(),
+        pricing: ObservabilityPricingSchema,
+      })
+      .strict()
+      .optional(),
+    health: z
+      .object({
+        enabled: z.boolean().optional(),
+        failureThreshold: z.number().int().positive().optional(),
+        windowMs: z.number().int().positive().optional(),
+        openMs: z.number().int().positive().optional(),
+        emitIntervalMs: z.number().int().positive().optional(),
+      })
+      .strict()
+      .optional(),
+    stream: z
+      .object({
+        enabled: z.boolean().optional(),
+        replayWindowMs: z.number().int().positive().optional(),
+        serverMaxEventsPerSec: z.number().int().positive().optional(),
+        serverMaxBufferedEvents: z.number().int().positive().optional(),
+        messageMaxBytes: z.number().int().positive().optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .optional();
+
 export const OpenClawSchema = z
   .object({
     $schema: z.string().optional(),
@@ -128,6 +187,7 @@ export const OpenClawSchema = z
     wizard: z
       .object({
         lastRunAt: z.string().optional(),
+        lastRunProfile: z.union([z.literal("standard"), z.literal("enhanced")]).optional(),
         lastRunVersion: z.string().optional(),
         lastRunCommit: z.string().optional(),
         lastRunCommand: z.string().optional(),
@@ -200,6 +260,7 @@ export const OpenClawSchema = z
       })
       .strict()
       .optional(),
+    observability: ObservabilitySchema,
     update: z
       .object({
         channel: z.union([z.literal("stable"), z.literal("beta"), z.literal("dev")]).optional(),
@@ -564,6 +625,8 @@ export const OpenClawSchema = z
     skills: z
       .object({
         allowBundled: z.array(z.string()).optional(),
+        bundles: z.record(z.string(), z.array(z.string())).optional(),
+        policy: SkillPolicySchema.optional(),
         load: z
           .object({
             extraDirs: z.array(z.string()).optional(),
@@ -600,6 +663,7 @@ export const OpenClawSchema = z
                 apiKey: z.string().optional().register(sensitive),
                 env: z.record(z.string(), z.string()).optional(),
                 config: z.record(z.string(), z.unknown()).optional(),
+                policy: SkillPolicySchema.optional(),
               })
               .strict(),
           )

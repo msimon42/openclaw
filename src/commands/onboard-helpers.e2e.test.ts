@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  applyWizardMetadata,
   normalizeGatewayTokenInput,
   openUrl,
   resolveBrowserOpenCommand,
@@ -154,5 +155,23 @@ describe("validateGatewayPasswordInput", () => {
 
   it("accepts a normal password", () => {
     expect(validateGatewayPasswordInput(" secret ")).toBeUndefined();
+  });
+});
+
+describe("applyWizardMetadata", () => {
+  it("stores lastRunProfile when provided", () => {
+    const next = applyWizardMetadata(
+      {
+        wizard: {
+          lastRunProfile: "standard",
+        },
+      },
+      { command: "onboard", mode: "local", profile: "enhanced" },
+    );
+
+    expect(next.wizard?.lastRunProfile).toBe("enhanced");
+    expect(next.wizard?.lastRunCommand).toBe("onboard");
+    expect(next.wizard?.lastRunMode).toBe("local");
+    expect(typeof next.wizard?.lastRunAt).toBe("string");
   });
 });

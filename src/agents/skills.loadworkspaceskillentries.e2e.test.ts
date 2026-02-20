@@ -30,6 +30,21 @@ async function setupWorkspaceWithProsePlugin() {
     `---\nname: prose\ndescription: test\n---\n`,
     "utf-8",
   );
+  await fs.writeFile(
+    path.join(pluginRoot, "skills", "prose", "skill.manifest.json"),
+    JSON.stringify(
+      {
+        id: "prose",
+        name: "prose",
+        version: "1.0.0",
+        entry: "SKILL.md",
+        capabilities: ["model.invoke"],
+      },
+      null,
+      2,
+    ),
+    "utf-8",
+  );
 
   return { workspaceDir, managedDir, bundledDir };
 }
